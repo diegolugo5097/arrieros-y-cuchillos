@@ -1,0 +1,157 @@
+// Efectos animados de la pantalla de mesa: cartas lanzadas, aparición de mitos,
+// dados grandes, resultados de combate, sabotajes y construcciones.
+import { useEffect, useRef, useState } from 'react';
+import { IMG, EXAGERACIONES, EQUIPO, COMIDA, mito, EDIFICIOS, BuildingId, TIER_NOMBRE } from '../game/data';
+import { GameState, MorralCard } from '../game/engine';
+import { Carta, CartaProps, Dado, propsMito, propsMorral } from './Cartas';
+
+type Efecto =
+  | { id: number; tipo: 'carta'; de: number; carta: CartaProps; texto: string; color: string }
+  | { id: number; tipo: 'mito'; mitoId: string }
+  | { id: number; tipo: 'dados'; dados: number[]; texto: string }
+  | { id: number; tipo: 'resultado'; r: 'gana' | 'pierde' | 'escapa'; texto: string }
+  | { id: number; tipo: 'sabotaje'; de: number; d8: number; texto: string; color: string }
+  | { id: number; tipo: 'construir'; b: BuildingId; texto: string; color: string };
+
+const DURACION: Record<Efecto['tipo'], number> = { carta: 2000, mito: 1900, dados: 1500, resultado: 2100, sabotaje: 1700, construir: 2000 };
+let sig = 1;
+
+/** Centro (en coordenadas del escenario 1920×1080) del pueblo de cada jugador. */
+function origenJugador(i: number, n: number) {
+  const ancho = (1884 - 14 * (n - 1)) / n;
+  return { x: 18 + i * (ancho + 14) + ancho / 2, y: 940 };
+}
+const CENTRO_MAPA = { x: 920, y: 450 };
+const PANEL_COMBATE = { x: 1712, y: 420 };
+
+function cartaPorNombre(nombre: string): CartaProps | null {
+  const ex = EXAGERACIONES.find(e => e.nombre === nombre);
+  if (ex) return propsMorral({ uid: 0, kind: 'exag', id: ex.id });
+  const eq = EQUIPO.find(e => e.nombre === nombre);
+  if (eq) return propsMorral({ uid: 0, kind: 'equipo', nombre: eq.nombre, slot: eq.slot, golpe: eq.golpe, img: eq.img, nota: eq.nota } as MorralCard);
+  const co = COMIDA.find(c => c.nombre === nombre);
+  if (co) return propsMorral({ uid: 0, kind: 'comida', nombre: co.nombre, tipo: co.tipo, img: co.img } as MorralCard);
+  return null;
+}
+
+export function useEfectosMesa(s: GameState) {
+  const ultimo = useRef<number>(-1);
+  const [cola, setCola] = useState<Efecto[]>([]);
+  const [temblor, setTemblor] = useState(0);
+
+  useEffect(() => {
+    const n = s.logN ?? 0;
+    if (ultimo.current < 0) { ultimo.current = n; return; }
+    const nuevas = s.log.filter(l => (l.n ?? 0) > ultimo.current);
+    ultimo.current = n;
+    const out: Efecto[] = [];
+    const color = (p?: number) => (p !== undefined ? s.players[p].color : '#e0a526');
+    const nombre = (p?: number) => (p !== undefined ? s.players[p].nombre : '');
+    for (const l of nuevas) {
+      let m: RegExpMatchArray | null;
+      if ((m = l.t.match(/ juega «(.+?)»/))) {
+        const c = cartaPorNombre(m[1]); if (c) out.push({ id: sig++, tipo: 'carta', de: l.p ?? 0, carta: c, texto: `${nombre(l.p)} lanza una exageración`, color: color(l.p) });
+      } else if ((m = l.t.match(/ sabotea con (.+?): \+(\d+)/))) {
+        const c = cartaPorNombre(m[1]);
+        if (c) out.push({ id: sig++, tipo: 'carta', de: l.p ?? 0, carta: c, texto: `${nombre(l.p)} sabotea`, color: color(l.p) });
+        out.push({ id: sig++, tipo: 'sabotaje', de: l.p ?? 0, d8: Number(m[2]), texto: `¡Sabotaje de ${nombre(l.p)}! +${m[2]} al mito`, color: color(l.p) });
+      } else if ((m = l.t.match(/ come (.+?): \+/))) {
+        const c = cartaPorNombre(m[1]); if (c) out.push({ id: sig++, tipo: 'carta', de: l.p ?? 0, carta: c, texto: `${nombre(l.p)} come para pelear`, color: color(l.p) });
+      } else if ((m = l.t.match(/ se equipa (.+?) \(/))) {
+        const c = cartaPorNombre(m[1]); if (c) out.push({ id: sig++, tipo: 'carta', de: l.p ?? 0, carta: c, texto: `${nombre(l.p)} se equipa`, color: color(l.p) });
+      } else if (l.t.includes(' enfrenta a ') && s.combat) {
+        out.push({ id: sig++, tipo: 'mito', mitoId: s.combat.mitoId });
+      } else if ((m = l.t.match(/ lanza (\d[\d + ]*)(?: \(|\.)/)) && !l.t.includes('habilidad')) {
+        out.push({ id: sig++, tipo: 'dados', dados: m[1].split(' + ').map(Number), texto: nombre(l.p) });
+      } else if (l.t.includes(' vence a ')) {
+        out.push({ id: sig++, tipo: 'resultado', r: 'gana', texto: l.t.replace(/^¡|!.*$/g, '') });
+      } else if (l.t.includes(' pierde contra ') || l.t.includes('no lo logra')) {
+        out.push({ id: sig++, tipo: 'resultado', r: 'pierde', texto: nombre(l.p) });
+      } else if (/ huye \(saca/.test(l.t)) {
+        out.push({ id: sig++, tipo: 'resultado', r: 'escapa', texto: nombre(l.p) });
+      } else if ((m = l.t.match(/ construye (.+)!/))) {
+        const b = (Object.keys(EDIFICIOS) as BuildingId[]).find(k => EDIFICIOS[k].nombre === m![1]);
+        if (b) out.push({ id: sig++, tipo: 'construir', b, texto: `¡${nombre(l.p)} construye ${EDIFICIOS[b].nombre}!`, color: color(l.p) });
+      }
+    }
+    if (out.length) setCola(c => [...c, ...out].slice(-6));
+  }, [s]);
+
+  const actual = cola[0] ?? null;
+  useEffect(() => {
+    if (!actual) return;
+    if (actual.tipo === 'mito' || (actual.tipo === 'resultado' && actual.r === 'pierde')) setTemblor(t => t + 1);
+    // Si hay cola, los efectos se aceleran para no quedarse atrás del juego
+    const dur = DURACION[actual.tipo] * (cola.length > 2 ? 0.6 : 1);
+    const id = setTimeout(() => setCola(c => c.slice(1)), dur);
+    return () => clearTimeout(id);
+  }, [actual?.id]);
+
+  return { actual, temblor, rapido: cola.length > 2 };
+}
+
+export function CapaEfectos({ s, efecto, rapido }: { s: GameState; efecto: ReturnType<typeof useEfectosMesa>['actual']; rapido: boolean }) {
+  if (!efecto) return null;
+  const n = s.players.length;
+  const vel = rapido ? { animationDuration: '1.2s' } : undefined;
+  switch (efecto.tipo) {
+    case 'carta': {
+      const o = origenJugador(efecto.de, n);
+      const st = { '--x0': `${o.x}px`, '--y0': `${o.y}px`, '--x1': `${CENTRO_MAPA.x}px`, '--y1': `${CENTRO_MAPA.y}px`, ...vel } as React.CSSProperties;
+      return (
+        <div className="fx-capa" key={efecto.id}>
+          <div className="fx-carta" style={st}>
+            <div className="fx-onda" />
+            <Carta {...efecto.carta} w={250} />
+          </div>
+          <div className="fx-rotulo" style={{ borderColor: efecto.color, ...vel }}>{efecto.texto}</div>
+        </div>
+      );
+    }
+    case 'mito': {
+      const m = mito(efecto.mitoId);
+      return (
+        <div className={`fx-capa fx-mito-capa tier-${m.tier}`} key={efecto.id}>
+          <div className="fx-destello" />
+          <img className="fx-mito" src={IMG(`mitos/${m.id}`)} alt="" />
+          <div className="fx-mito-nombre"><small>¡Aparece un mito {TIER_NOMBRE[m.tier].toLowerCase()}!</small>{m.nombre}<span>Ataque {m.ataque}</span></div>
+        </div>
+      );
+    }
+    case 'dados':
+      return (
+        <div className="fx-capa" key={efecto.id}>
+          <div className="fx-dados">
+            {efecto.dados.map((v, i) => <div key={i} className="fx-dado" style={{ animationDelay: `${i * 90}ms`, ['--dx' as string]: `${(i - (efecto.dados.length - 1) / 2) * 150}px` }}><Dado v={v} grande /></div>)}
+          </div>
+          <div className="fx-rotulo">{efecto.texto} lanza los dados: {efecto.dados.join(' + ')}</div>
+        </div>
+      );
+    case 'resultado':
+      return (
+        <div className={`fx-capa fx-res fx-${efecto.r}`} key={efecto.id}>
+          {efecto.r === 'gana' && <><div className="fx-rayos" /><div className="fx-cortes"><i /><i /><i /></div>{Array.from({ length: 14 }, (_, i) => <img key={i} className="fx-moneda" src={IMG(i % 3 ? 'objetos/oro' : 'objetos/guaca')} alt="" style={{ ['--a' as string]: `${(i / 14) * 360}deg`, ['--r' as string]: `${260 + (i % 4) * 60}px`, animationDelay: `${(i % 5) * 40}ms` }} />)}</>}
+          {efecto.r === 'pierde' && <div className="fx-grietas" />}
+          <div className="fx-res-texto">{efecto.r === 'gana' ? '¡Victoria!' : efecto.r === 'pierde' ? '¡Derrota!' : '¡Escapó!'}</div>
+          <div className="fx-res-sub">{efecto.r === 'gana' ? efecto.texto : efecto.r === 'pierde' ? `${efecto.texto} sufre el castigo del mito` : `${efecto.texto} huye por el sendero`}</div>
+        </div>
+      );
+    case 'sabotaje': {
+      const o = origenJugador(efecto.de, n);
+      const st = { '--x0': `${o.x}px`, '--y0': `${o.y}px`, '--x1': `${PANEL_COMBATE.x}px`, '--y1': `${PANEL_COMBATE.y}px` } as React.CSSProperties;
+      return (
+        <div className="fx-capa" key={efecto.id}>
+          <div className="fx-d8" style={st}><Dado v={efecto.d8} color="azul" grande /></div>
+          <div className="fx-rotulo azul" style={{ borderColor: efecto.color }}>{efecto.texto}</div>
+        </div>
+      );
+    }
+    case 'construir':
+      return (
+        <div className="fx-capa" key={efecto.id}>
+          <div className="fx-edificio"><div className="fx-chispas">{Array.from({ length: 10 }, (_, i) => <i key={i} style={{ ['--a' as string]: `${i * 36}deg` }} />)}</div><img src={IMG(EDIFICIOS[efecto.b].img)} alt="" /></div>
+          <div className="fx-rotulo" style={{ borderColor: efecto.color }}>{efecto.texto}</div>
+        </div>
+      );
+  }
+}

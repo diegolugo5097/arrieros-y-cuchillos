@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: arrieros-y-cuchillos
+    runtime: node
+    plan: free
+    buildCommand: npm install --include=dev && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/salud
+    envVars:
+      - key: NODE_VERSION
+        value: 20
