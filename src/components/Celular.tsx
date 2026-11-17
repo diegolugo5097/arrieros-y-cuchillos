@@ -445,6 +445,12 @@ function CelCombate({ s, me, dispatch, onCerrar }: { s: GameState; me: Player; d
 }
 
 // ---------------- Decisiones y reacciones ----------------
+/** Si la opción se refiere a una carta de la mano (p. ej. «food:12», «filo:30» o el uid solo), devuelve esa carta. */
+function cartaDeOpcion(id: string, me: Player): MorralCard | undefined {
+  const uid = Number(id.split(':').pop());
+  return Number.isFinite(uid) && uid > 0 ? me.mano.find(c => c.uid === uid) : undefined;
+}
+
 function CelDecision({ s, me, sala, dispatch, onVer, onVerMesa }: { s: GameState; me: Player; sala: SalaInfo; dispatch: (a: Action) => void; onVer: (uid: number) => void; onVerMesa: () => void }) {
   const pnd = pendiente(s)!;
   const [elegida, setElegida] = useState<string | null>(null);
@@ -479,8 +485,8 @@ function CelDecision({ s, me, sala, dispatch, onVer, onVerMesa }: { s: GameState
       <section className="cel-opciones">
         {ops.length > 0 && <div className="cel-et">{pnd.kind === 'reaccion' || pnd.kind === 'victoria-rival' ? 'Lanza una carta a la mesa' : 'Elige'}</div>}
         {ops.map(o => (
-          <button key={o.id} className={`cel-opcion ${elegida === o.id ? 'lanzada' : ''}`} onClick={() => elegir(o.id, /^(food|perro|bizco|tigre|filo):/.test(o.id) || pnd.kind === 'exag-objetivo')}>
-            {o.img ? <img src={IMG(o.img)} alt="" /> : (o.label.startsWith('«') || o.id.startsWith('bizco') || o.id.startsWith('perro') || o.id.startsWith('tigre') || o.id.startsWith('filo')) ? <span className="cel-opcion-exag" style={{ backgroundImage: `url(${IMG('cartas/ilustracion-exageraciones')})` }} /> : null}
+          <button key={o.id} className={`cel-opcion ${cartaDeOpcion(o.id, me) ? 'con-carta' : ''} ${elegida === o.id ? 'lanzada' : ''}`} onClick={() => elegir(o.id, /^(food|perro|bizco|tigre|filo):/.test(o.id) || pnd.kind === 'exag-objetivo')}>
+            {cartaDeOpcion(o.id, me) ? <Carta {...propsMorral(cartaDeOpcion(o.id, me)!)} w={74} compacta /> : o.img ? <img src={IMG(o.img)} alt="" /> : (o.label.startsWith('«') || o.id.startsWith('bizco') || o.id.startsWith('perro') || o.id.startsWith('tigre') || o.id.startsWith('filo')) ? <span className="cel-opcion-exag" style={{ backgroundImage: `url(${IMG('cartas/ilustracion-exageraciones')})` }} /> : null}
             <span><b>{o.label}</b>{o.detail && <span>{o.detail}</span>}</span>
           </button>
         ))}

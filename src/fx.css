@@ -372,3 +372,31 @@
   .pantalla-config { place-items: start center; }
   .config-caja { margin: 10px; padding: 1rem 1.2rem; }
 }
+
+/* Decisiones: opciones que son cartas de la mano */
+.cel-opcion.con-carta { padding: 6px 12px 6px 6px; }
+.cel-opcion.con-carta .cj { flex: 0 0 auto; }
+@media (orientation: landscape) {
+  .cel:has(> .cel-decision) { grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); grid-template-rows: auto auto 1fr; height: 100%; }
+  .cel:has(> .cel-decision) > .cel-cab { grid-column: 1 / -1; grid-row: 1; padding: 6px 12px; }
+  .cel:has(> .cel-decision) > .cel-decision { grid-column: 1; grid-row: 2; margin: 8px 6px 0 12px; padding: 10px; gap: 6px; }
+  .cel:has(> .cel-decision) > .cel-mano-mini { grid-column: 1; grid-row: 3; margin-top: 8px; padding: 8px 12px; min-width: 0; align-self: end; }
+  .cel:has(> .cel-decision) > .cel-opciones { grid-column: 2; grid-row: 2 / span 2; margin: 8px 12px 12px 6px; min-width: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); align-content: start; gap: 8px; }
+  .cel:has(> .cel-decision) > .cel-opciones > .cel-et { grid-column: 1 / -1; margin: 0; }
+  .cel:has(> .cel-decision) > .cel-opciones > .salida { grid-column: 1 / -1; }
+  .cel:has(> .cel-decision) .cel-mano-mini-fila { min-width: 0; }
+  .cel-decision-tit { font-size: 17px; }
+  .cel-decision-info { font-size: 14px; }
+  .cel-decision-info img { width: 64px; height: 64px; }
+  .cel-decision .cel-reloj { width: 40px; height: 40px; font-size: 16px; }
+}
+.boton-completa { position: fixed; left: max(10px, env(safe-area-inset-left)); bottom: 10px; z-index: 76; width: 44px; height: 44px; border-radius: 12px; background: rgba(244, 233, 210, .92); color: #2b1d12; border: 2px solid #120a04; font-size: 22px; line-height: 1; cursor: pointer; box-shadow: 0 4px 12px rgba(0, 0, 0, .5); }
+.girar-ios { max-width: 320px; opacity: .85; line-height: 1.4; }
+@media (orientation: landscape) { .cel:has(> .cel-contenido) > .cel-nav { padding-bottom: 62px; } }
+.cel-anuncio.compacto { inset: auto; left: 50%; bottom: 10px; transform: translateX(-50%); width: min(520px, calc(100% - 24px)); padding: 0; background: none; display: block; }
+.cel-anuncio.compacto .cel-anuncio-caja { padding: 8px 12px; gap: 10px; border-width: 3px; }
+.cel-anuncio.compacto .cel-anuncio-img { flex-basis: 64px; aspect-ratio: 1; }
+.cel-anuncio.compacto h2 { font-size: 16px; margin: 0 0 2px; }
+.cel-anuncio.compacto p { font-size: 13px; }
+.cel-anuncio.compacto small { display: none; }
+.cel-anuncio.compacto .mesa-anuncio-tiempo { height: 5px; margin-top: 6px; }

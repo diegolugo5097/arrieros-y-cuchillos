@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Inicio } from './components/Inicio';
 import { Reglas } from './components/Modales';
 import { SalaRed } from './components/Sala';
-import { Juego, pantallaCompleta } from './components/Juego';
+import { Juego, pantallaCompleta, useAutoPantallaCompleta, BotonPantallaCompleta } from './components/Juego';
 import { haySesionRed, useRed } from './net/red';
 import { useSonidos } from './audio/useSonidos';
 
@@ -18,6 +18,7 @@ export default function App() {
   const [pantalla, setPantalla] = useState<Pantalla>(inicial);
   const [reglas, setReglas] = useState(false);
   const red = useRed(pantalla !== 'inicio');
+  useAutoPantallaCompleta();
 
   const jugando = pantalla !== 'inicio' && !!red.sala?.enJuego && !!red.estado;
   useSonidos(jugando ? red.estado : null, true);
@@ -46,6 +47,7 @@ export default function App() {
     <>
       <Inicio onCrear={() => setPantalla('crear')} onUnirse={() => setPantalla('unirse')} onVolver={() => setPantalla('unirse')} onReglas={() => setReglas(true)} hayPartida={haySesionRed()} />
       {reglas && <Reglas onCerrar={() => setReglas(false)} />}
+      <BotonPantallaCompleta />
     </>
   );
 }

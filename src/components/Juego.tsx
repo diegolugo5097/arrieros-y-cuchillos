@@ -38,18 +38,20 @@ export function Juego(props: Props) {
             : <button onClick={() => setVer('propio')}><img src={IMG('cartas/dorso-morral')} alt="" />Mis cartas · {me.mano.length}</button>}
         </div>
       )}
-      {!mostrarMesa && anuncio && <AnuncioFlotante a={anuncio} onCerrar={cerrarAnuncio} />}
+      {!mostrarMesa && anuncio && <AnuncioFlotante a={anuncio} onCerrar={cerrarAnuncio} compacto={pnd?.player === yo} />}
+      <BotonPantallaCompleta />
       <GirarAviso />
     </>
   );
 }
 
 /** Dichos y eventos cuando el jugador está en sus controles (en la mesa los muestra el tablero). */
-function AnuncioFlotante({ a, onCerrar }: { a: Anuncio; onCerrar: () => void }) {
+function AnuncioFlotante({ a, onCerrar, compacto }: { a: Anuncio; onCerrar: () => void; compacto?: boolean }) {
   const dur = Math.min(16000, Math.max(9000, 5000 + (a.titulo.length + a.texto.length) * 70));
   useEffect(() => { const id = setTimeout(onCerrar, dur); return () => clearTimeout(id); }, [a, onCerrar, dur]);
   return (
-    <div className="cel-anuncio" onClick={onCerrar} role="dialog" aria-label={a.titulo}>
+    // Si estás decidiendo (con reloj), el anuncio no tapa la pantalla: queda como aviso pequeño
+    <div className={`cel-anuncio ${compacto ? 'compacto' : ''}`} onClick={onCerrar} role={compacto ? 'status' : 'dialog'} aria-label={a.titulo}>
       <div className="cel-anuncio-caja">
         {a.img && <div className="cel-anuncio-img" style={{ backgroundImage: `url(${IMG(a.img)})` }} />}
         <div>
@@ -70,9 +72,40 @@ export function GirarAviso() {
       <div className="girar-icono" aria-hidden="true">📱</div>
       <b>Gira tu celular</b>
       <span>Arrieros y Cuchillos se juega en horizontal.</span>
-      <button className="btn" onClick={pantallaCompleta}>Pantalla completa</button>
+      {puedePantallaCompleta()
+        ? <button className="btn" onClick={pantallaCompleta}>Pantalla completa</button>
+        : <small className="girar-ios">En iPhone: toca Compartir → «Agregar a inicio» y abre el juego desde ese ícono para verlo sin barras.</small>}
     </div>
   );
+}
+
+const esTactil = () => typeof window !== 'undefined' && matchMedia('(pointer: coarse)').matches;
+export const enPantallaCompleta = () => !!(document.fullscreenElement || (document as any).webkitFullscreenElement) || matchMedia('(display-mode: fullscreen), (display-mode: standalone)').matches || (navigator as any).standalone === true;
+export const puedePantallaCompleta = () => !!(document.documentElement.requestFullscreen || (document.documentElement as any).webkitRequestFullscreen);
+
+/**
+ * En celulares, el navegador solo deja entrar a pantalla completa con un toque del usuario:
+ * se pide en el primer toque de cada pantalla (y otra vez si se sale), sin que el jugador tenga que buscar un botón.
+ */
+export function useAutoPantallaCompleta() {
+  useEffect(() => {
+    if (!esTactil() || !puedePantallaCompleta()) return;
+    const f = () => { if (!enPantallaCompleta()) pantallaCompleta(); };
+    document.addEventListener('pointerup', f, true);
+    return () => document.removeEventListener('pointerup', f, true);
+  }, []);
+}
+
+/** Botón ⛶ para PC o cuando el navegador no entró solo. */
+export function BotonPantallaCompleta() {
+  const [activa, setActiva] = useState(enPantallaCompleta());
+  useEffect(() => {
+    const f = () => setActiva(enPantallaCompleta());
+    document.addEventListener('fullscreenchange', f); document.addEventListener('webkitfullscreenchange', f);
+    return () => { document.removeEventListener('fullscreenchange', f); document.removeEventListener('webkitfullscreenchange', f); };
+  }, []);
+  if (activa || !puedePantallaCompleta()) return null;
+  return <button className="boton-completa" onClick={pantallaCompleta} aria-label="Pantalla completa" title="Pantalla completa">⛶</button>;
 }
 
 /** Pantalla completa y orientación horizontal (donde el navegador lo permite, p. ej. Chrome en Android). */
