@@ -400,3 +400,5 @@
 .cel-anuncio.compacto p { font-size: 13px; }
 .cel-anuncio.compacto small { display: none; }
 .cel-anuncio.compacto .mesa-anuncio-tiempo { height: 5px; margin-top: 6px; }
+.ayuda-ios { max-width: 520px; }
+.ayuda-ios ol { margin: 8px 0 12px; padding-left: 20px; line-height: 1.5; font-size: 15px; }

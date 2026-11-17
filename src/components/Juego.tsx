@@ -74,7 +74,7 @@ export function GirarAviso() {
       <span>Arrieros y Cuchillos se juega en horizontal.</span>
       {puedePantallaCompleta()
         ? <button className="btn" onClick={pantallaCompleta}>Pantalla completa</button>
-        : <small className="girar-ios">En iPhone: toca Compartir → «Agregar a inicio» y abre el juego desde ese ícono para verlo sin barras.</small>}
+        : <small className="girar-ios">En iPhone (Safari o Chrome): toca Compartir → «Agregar a pantalla de inicio» y abre el juego desde ese ícono para verlo sin barras.</small>}
     </div>
   );
 }
@@ -104,8 +104,41 @@ export function BotonPantallaCompleta() {
     document.addEventListener('fullscreenchange', f); document.addEventListener('webkitfullscreenchange', f);
     return () => { document.removeEventListener('fullscreenchange', f); document.removeEventListener('webkitfullscreenchange', f); };
   }, []);
-  if (activa || !puedePantallaCompleta()) return null;
+  const [ayuda, setAyuda] = useState(false);
+  if (activa) return null;
+  // iPhone: ningún navegador permite pantalla completa en páginas; se explica cómo instalarlo como app
+  if (!puedePantallaCompleta()) {
+    if (!esIOS()) return null;
+    return (
+      <>
+        <button className="boton-completa" onClick={() => setAyuda(true)} aria-label="Cómo ver en pantalla completa" title="Pantalla completa">⛶</button>
+        {ayuda && <AyudaIOS onCerrar={() => setAyuda(false)} />}
+      </>
+    );
+  }
   return <button className="boton-completa" onClick={pantallaCompleta} aria-label="Pantalla completa" title="Pantalla completa">⛶</button>;
+}
+
+const esIOS = () => /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+function AyudaIOS({ onCerrar }: { onCerrar: () => void }) {
+  const chrome = /CriOS/.test(navigator.userAgent);
+  return (
+    <div className="cel-anuncio" onClick={onCerrar} role="dialog" aria-label="Pantalla completa en iPhone">
+      <div className="cel-anuncio-caja ayuda-ios" onClick={e => e.stopPropagation()}>
+        <div>
+          <h2>Pantalla completa en iPhone</h2>
+          <p>En iPhone ningún navegador deja poner páginas en pantalla completa. Instálalo como app y se abrirá sin barras:</p>
+          <ol>
+            <li>Toca <b>Compartir</b> {chrome ? '(el cuadrito con la flecha, en la barra de dirección)' : '(el cuadrito con la flecha, abajo)'}.</li>
+            <li>Elige <b>«Agregar a pantalla de inicio»</b>.</li>
+            <li>Abre el juego desde el ícono nuevo y gira el celular.</li>
+          </ol>
+          <button className="btn" onClick={onCerrar}>Entendido</button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 /** Pantalla completa y orientación horizontal (donde el navegador lo permite, p. ej. Chrome en Android). */

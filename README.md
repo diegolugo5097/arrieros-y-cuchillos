@@ -46,7 +46,7 @@ En celulares el juego se ve en horizontal; si el celular está vertical, aparece
 **Pantalla completa:**
 - **Android (Chrome):** el juego entra solo a pantalla completa en horizontal con el primer toque, y vuelve a entrar si se sale.
 - **PC:** hay un botón ⛶ abajo a la izquierda.
-- **iPhone:** Safari no permite pantalla completa en páginas web. Hay que tocar Compartir → «Agregar a inicio» y abrir el juego desde ese ícono, que abre sin barras del navegador. El juego trae su manifiesto e íconos para eso, y en Android también se puede instalar así.
+- **iPhone (Safari o Chrome):** ningún navegador de iPhone permite pantalla completa en páginas web. Hay que tocar Compartir → «Agregar a pantalla de inicio» y abrir el juego desde ese ícono, que abre sin barras del navegador. El juego trae su manifiesto e íconos para eso, y en Android también se puede instalar así.
 
 **Mientras otro juega, todos ven la mesa:**
 - el mapa con la ficha de cada jugador;
