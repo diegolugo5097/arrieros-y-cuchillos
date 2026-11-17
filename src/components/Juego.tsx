@@ -13,6 +13,9 @@ interface Props {
   anuncio: Anuncio | null; cerrarAnuncio: () => void; onSalir: () => void; onNueva: () => void; convertirIA: (i: number) => void;
 }
 
+/** Ancho de la franja a la derecha de la mesa donde va el botón de Mis cartas. */
+const FRANJA = 92;
+
 export function Juego(props: Props) {
   const { s, yo, sala, anuncio, cerrarAnuncio, onSalir, onNueva } = props;
   const pnd = pendiente(s);
@@ -29,13 +32,13 @@ export function Juego(props: Props) {
   return (
     <>
       {mostrarMesa
-        ? <MesaTablero s={s} sala={sala} anuncio={anuncio} cerrarAnuncio={cerrarAnuncio} onNueva={onNueva} onSalir={onSalir} posiciones={posiciones} yo={yo} />
+        ? <MesaTablero s={s} sala={sala} anuncio={anuncio} cerrarAnuncio={cerrarAnuncio} onNueva={onNueva} onSalir={onSalir} posiciones={posiciones} yo={yo} reservaDerecha={s.winner === null ? FRANJA : 0} />
         : <ControlCelular {...props} espectador={!toca} onVerMesa={() => setVer('mesa')} />}
       {mostrarMesa && s.winner === null && (
         <div className="mesa-flotante">
           {toca
-            ? <button className="dorado" onClick={() => setVer('auto')}>{pnd?.player === yo ? 'Te toca decidir →' : 'Volver a mi turno →'}</button>
-            : <button onClick={() => setVer('propio')}><img src={IMG('cartas/dorso-morral')} alt="" />Mis cartas · {me.mano.length}</button>}
+            ? <button className="dorado" onClick={() => setVer('auto')}><span>{pnd?.player === yo ? 'Te toca decidir' : 'Volver a mi turno'}</span><b>→</b></button>
+            : <button onClick={() => setVer('propio')}><img src={IMG('cartas/dorso-morral')} alt="" /><span>Mis cartas</span><b>{me.mano.length}</b></button>}
         </div>
       )}
       {!mostrarMesa && anuncio && <AnuncioFlotante a={anuncio} onCerrar={cerrarAnuncio} compacto={pnd?.player === yo} />}

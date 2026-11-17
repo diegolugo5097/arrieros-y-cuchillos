@@ -1,8 +1,9 @@
 // Sonidos sintetizados con Web Audio (sin archivos externos).
 // Efectos: dados, cartas, monedas, construcción, combate, victoria…
-// Música: cuerdas pulsadas tipo tiple (algoritmo Karplus-Strong) en dos ambientes: pueblo y monte.
+// Música: ver musica.ts (tres temas: pueblo, monte y combate).
+import { Musica, Tema } from './musica';
 
-type Ambiente = 'pueblo' | 'monte' | null;
+type Ambiente = Tema | null;
 const CONF = 'arrieros-y-cuchillos:sonido';
 
 class MotorSonido {
@@ -12,7 +13,7 @@ class MotorSonido {
   private cache = new Map<string, AudioBuffer>();
   private ambiente: Ambiente = null;
   private timer: number | null = null;
-  private siguienteTiempo = 0; private paso = 0;
+  private siguienteTiempo = 0; private paso = 0; private musicaMotor: Musica | null = null;
 
   constructor() {
     try { const c = JSON.parse(localStorage.getItem(CONF) ?? '{}'); Object.assign(this, c); } catch { /* sin config */ }
@@ -33,6 +34,8 @@ class MotorSonido {
       this.reverbGain = this.ctx.createGain(); this.reverbGain.gain.value = 0.25;
       this.reverb.connect(this.reverbGain); this.reverbGain.connect(this.master);
       this.aplicarVolumen();
+      // Si ya había un ambiente pedido antes del primer toque, arranca la música ahora
+      const a = this.ambiente; this.ambiente = null; if (a) this.setAmbiente(a);
     }
     if (this.ctx.state === 'suspended') this.ctx.resume();
   }
@@ -136,40 +139,18 @@ class MotorSonido {
     if (a === this.ambiente) return;
     this.ambiente = a;
     if (!this.ctx) return;
-    if (a && this.timer === null) { this.siguienteTiempo = this.ctx.currentTime + 0.1; this.paso = 0; this.timer = window.setInterval(() => this.programar(), 60); }
+    this.musicaMotor ??= new Musica(this.ctx, this.musica, this.reverb);
+    // Cada tema arranca desde su primer compás
+    this.paso = 0; this.siguienteTiempo = this.ctx.currentTime + 0.15;
+    if (a && this.timer === null) this.timer = window.setInterval(() => this.programar(), 50);
     if (!a && this.timer !== null) { clearInterval(this.timer); this.timer = null; }
   }
   private programar() {
-    if (!this.ctx || !this.ambiente) return;
-    const monte = this.ambiente === 'monte';
-    const corchea = monte ? 0.32 : 0.2; // compás de 6/8 tipo bambuco (pueblo) / lento y menor (monte)
+    if (!this.ctx || !this.ambiente || !this.musicaMotor) return;
+    const def = Musica.def(this.ambiente);
     while (this.siguienteTiempo < this.ctx.currentTime + 0.3) {
-      if (this.musicaOn) this.tocarPaso(this.paso, this.siguienteTiempo, monte);
-      this.siguienteTiempo += corchea; this.paso++;
-    }
-  }
-  private tocarPaso(paso: number, t: number, monte: boolean) {
-    const nota = (m: number) => 440 * Math.pow(2, (m - 69) / 12);
-    // Progresiones (MIDI): pueblo en Re mayor, monte en Si menor
-    const pueblo = [[50, [62, 66, 69]], [55, [62, 67, 71]], [57, [61, 64, 69]], [50, [62, 66, 69]], [47, [62, 66, 71]], [55, [62, 67, 71]], [57, [61, 64, 67]], [50, [62, 66, 69]]] as const;
-    const montes = [[47, [59, 62, 66]], [43, [59, 62, 67]], [45, [57, 61, 64]], [42, [57, 61, 66]]] as const;
-    const prog = monte ? montes : pueblo;
-    const compas = Math.floor(paso / 6) % prog.length;
-    const tiempo = paso % 6;
-    const [bajo, acorde] = prog[compas];
-    const d = this.musica;
-    if (monte) {
-      if (tiempo === 0) { this.tocarBuffer(this.cuerda(nota(bajo), 3, 0.25), t, 0.55, d, 0.5); }
-      if (tiempo === 3 && compas % 2 === 1) this.tocarBuffer(this.cuerda(nota(bajo + 7), 2.5, 0.25), t, 0.3, d, 0.5);
-      if (tiempo === 2 || tiempo === 5) { const m = acorde[(paso >> 1) % 3] + 12; this.tocarBuffer(this.cuerda(nota(m), 2.2, 0.35), t, 0.18, d, 0.7, Math.random() * 0.6 - 0.3); }
-      if (tiempo === 0 && compas === 0) this.tono(nota(bajo - 12), t, 4, 0.05, 'sine', d);
-    } else {
-      // bambuco: bajo en 1 y 4, rasgueo en 3 y 6, adornos
-      if (tiempo === 0) this.tocarBuffer(this.cuerda(nota(bajo), 1.8, 0.4), t, 0.6, d, 0.3);
-      if (tiempo === 3) this.tocarBuffer(this.cuerda(nota(bajo + 7), 1.4, 0.4), t, 0.4, d, 0.3);
-      if (tiempo === 2 || tiempo === 5) acorde.forEach((m, i) => this.tocarBuffer(this.cuerda(nota(m + 12), 0.9, 0.8), t + i * 0.012, 0.16, d, 0.25, (i - 1) * 0.3));
-      if (tiempo === 1 && compas % 2 === 0) this.tocarBuffer(this.cuerda(nota(acorde[2] + 24), 0.8, 0.9), t, 0.1, d, 0.4, 0.4);
-      if (tiempo === 4 && compas % 4 === 3) this.tocarBuffer(this.cuerda(nota(acorde[1] + 24), 0.8, 0.9), t, 0.1, d, 0.4, -0.4);
+      if (this.musicaOn) this.musicaMotor.tocar(this.ambiente, this.paso, this.siguienteTiempo);
+      this.siguienteTiempo += def.paso; this.paso++;
     }
   }
 }

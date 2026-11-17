@@ -98,7 +98,21 @@ Vercel no mantiene conexiones WebSocket, así que el servidor de partidas sigue 
 
 ## Sonido
 
-Todos los sonidos se sintetizan en el navegador con Web Audio, sin archivos: dados, cartas, monedas, martillazos al construir, el encuentro con cada mito (más grave con los épicos y ancestrales), victoria, derrota, eventos y una fanfarria final. La música es de cuerdas pulsadas tipo tiple: un bambuco en Re mayor en el pueblo y un tema lento en Si menor en el Monte. El botón 🔊 permite apagar o ajustar la música y los efectos por separado.
+Todo el sonido se sintetiza en el navegador (Web Audio), sin archivos de audio.
+
+**Música de fondo**, en `src/audio/musica.ts`: tres temas en bucle con sabor andino de videojuego. Cada uno tiene melodía principal, bajo, rasgueo de tiple y percusión (bombo, guacharaca, palmas, redoblante).
+
+| Tema | Cuándo suena | Estilo |
+| --- | --- | --- |
+| Pueblo | Plaza, Taller y Campo | Bambuco alegre en 6/8, Re mayor; melodía de tiple doblada por una «ocarina» y un puente sin melodía |
+| Monte | Explorando el Monte | 6/8 lento en Si menor; latido de tambor, dron grave y flauta con eco |
+| Combate | Pelea contra un mito | 4/4 rápido en Si menor; ostinato de bajo, tambores, melodía heroica y redobles al final de cada frase |
+
+Para cambiar una melodía, edita las listas de notas `[paso, nota MIDI, duración]` de cada compás. `renderizarTema()` exporta unos segundos de un tema para escucharlo.
+
+**Efectos**, en `src/audio/sonido.ts`: dados, cartas, monedas, construcción, mitos, victoria, derrota, entre otros.
+
+El botón de sonido permite apagar o ajustar la música y los efectos por separado.
 
 ## Reglas
 

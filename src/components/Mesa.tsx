@@ -13,20 +13,21 @@ import { CapaEfectos, useEfectosMesa } from './Efectos';
 import { Victoria } from './Modales';
 
 /** Escenario de 1920×1080 escalado para llenar cualquier pantalla. */
-function Escenario({ children, girable }: { children: React.ReactNode; girable?: boolean }) {
+function Escenario({ children, girable, reserva = 0 }: { children: React.ReactNode; girable?: boolean; reserva?: number }) {
   const [k, setK] = useState({ k: 1, girar: false });
   useEffect(() => {
     const f = () => {
       const w = window.innerWidth, h = window.innerHeight;
       // En un celular vertical, la mesa se gira 90° para aprovechar la pantalla
       const girar = !!girable && h > w;
-      setK({ girar, k: girar ? Math.min(h / 1920, w / 1080) : Math.min(w / 1920, h / 1080) });
+      // «reserva»: franja libre a la derecha (para el botón de Mis cartas), así no tapa nada del tablero
+      setK({ girar, k: girar ? Math.min(h / 1920, w / 1080) : Math.min((w - reserva) / 1920, h / 1080) });
     };
     f(); window.addEventListener('resize', f); return () => window.removeEventListener('resize', f);
-  }, [girable]);
+  }, [girable, reserva]);
   return (
     <div className={`mesa-fondo ${girable ? 'en-celular' : ''}`}>
-      <div className="mesa-escenario" style={{ transform: `translate(-50%, -50%)${k.girar ? ' rotate(90deg)' : ''} scale(${k.k})` }}>{children}</div>
+      <div className="mesa-escenario" style={{ left: reserva ? `calc(50% - ${reserva / 2}px)` : undefined, transform: `translate(-50%, -50%)${k.girar ? ' rotate(90deg)' : ''} scale(${k.k})` }}>{children}</div>
     </div>
   );
 }
@@ -97,7 +98,7 @@ export function MesaSala({ sala, onSalir }: { sala: SalaInfo; onSalir: () => voi
             ))}
           </div>
           <div className="mesa-sala-pie">
-            <div>La partida empieza cuando el anfitrión toque <b>Comenzar</b> en su celular.</div>
+            <div>La partida empieza cuando el anfitrión toque <b>Comenzar</b> en su dispositivo.</div>
             <div className="mesa-chip-claro">8 cartas iniciales · orden con D6</div>
           </div>
           <div className="mesa-sala-botones"><ControlSonido /><button className="btn chico sec" onClick={onSalir}>Cerrar mesa</button></div>
@@ -116,7 +117,7 @@ const POS_ZONA: Record<string, { left?: string; right?: string; top: string; ali
 };
 const NUM_ZONA: Record<string, number> = { plaza: 1, monte: 2, taller: 3, campo: 4 };
 
-export function MesaTablero({ s, sala, anuncio, cerrarAnuncio, onNueva, onSalir, enCelular, posiciones, yo }: { s: GameState; sala: SalaInfo; anuncio: Anuncio | null; cerrarAnuncio: () => void; onNueva: () => void; onSalir: () => void; enCelular?: boolean; posiciones?: Record<number, Phase>; yo?: number }) {
+export function MesaTablero({ s, sala, anuncio, cerrarAnuncio, onNueva, onSalir, enCelular, posiciones, yo, reservaDerecha }: { s: GameState; sala: SalaInfo; anuncio: Anuncio | null; cerrarAnuncio: () => void; onNueva: () => void; onSalir: () => void; enCelular?: boolean; posiciones?: Record<number, Phase>; yo?: number; reservaDerecha?: number }) {
   const p = s.players[s.current];
   const pnd = pendiente(s);
   // Posición de cada ficha en el mapa: el jugador de turno está en su zona; los demás, donde quedaron
@@ -136,7 +137,7 @@ export function MesaTablero({ s, sala, anuncio, cerrarAnuncio, onNueva, onSalir,
   const verCombate = !!c && s.phase === 'monte';
 
   return (
-    <Escenario girable={enCelular}>
+    <Escenario girable={enCelular} reserva={reservaDerecha}>
       <div className={`mesa ${fx.temblor ? (fx.temblor % 2 ? 'sacude-a' : 'sacude-b') : ''}`}>
         <header className="mesa-barra">
           <div className="mesa-barra-logo">Arrieros <span>y</span> Cuchillos</div>
@@ -194,7 +195,7 @@ export function MesaTablero({ s, sala, anuncio, cerrarAnuncio, onNueva, onSalir,
                 </div>
               );
             })}
-            {pnd && <div className="mesa-decide" style={{ borderColor: s.players[pnd.player].color }}><img src={IMG(personaje(s.players[pnd.player].personaje).img)} alt="" /><div><b>{s.players[pnd.player].nombre} decide{s.players[pnd.player].ia ? '' : ' en su celular'}</b><div>{pnd.title}</div></div>{sala.limite && sala.limite.player === pnd.player && restante !== null && <span className="mesa-reloj">{restante}</span>}</div>}
+            {pnd && <div className="mesa-decide" style={{ borderColor: s.players[pnd.player].color }}><img src={IMG(personaje(s.players[pnd.player].personaje).img)} alt="" /><div><b>{s.players[pnd.player].nombre} decide{s.players[pnd.player].ia ? '' : ' en su dispositivo'}</b><div>{pnd.title}</div></div>{sala.limite && sala.limite.player === pnd.player && restante !== null && <span className="mesa-reloj">{restante}</span>}</div>}
             {ultimo && <div className="mesa-ultimo"><b>Último:</b> {ultimo.t}</div>}
           </section>
 
@@ -268,7 +269,7 @@ export function MesaCombate({ s, restante }: { s: GameState; restante: number | 
   const poder = c.dice.length ? poderJugador(s, c) : null;
   const rec = c.reward ?? RECOMPENSA[m.tier];
   let estado: React.ReactNode;
-  if (c.step === 'decidir') estado = <><b>{p.nombre}</b> decide{p.ia ? '' : ' en su celular'}: ¿pelear o huir?</>;
+  if (c.step === 'decidir') estado = <><b>{p.nombre}</b> decide{p.ia ? '' : ' en su dispositivo'}: ¿pelear o huir?</>;
   else if (c.step === 'tirada') estado = <><b>{p.nombre}</b> puede comer antes de confirmar.</>;
   else if (c.step === 'rivales') estado = <><b>Rivales:</b> pueden sabotear desde su celular{restante !== null ? ` (${restante} s)` : ''}</>;
   else if (c.step === 'victoria') estado = <><b>Rivales:</b> pueden quitarle la recompensa{restante !== null ? ` (${restante} s)` : ''}</>;
@@ -318,7 +319,7 @@ function MesaOrden({ s }: { s: GameState }) {
     <div className="mesa-orden">
       <div className="mesa-orden-caja">
         <div className="mesa-orden-tit">¿Quién empieza?</div>
-        <div className="mesa-orden-sub">Cada arriero tira un D6 desde su celular. El que saque más arranca.</div>
+        <div className="mesa-orden-sub">Cada arriero tira un D6 desde su dispositivo. El que saque más arranca.</div>
         <div className="mesa-orden-fila">
           {s.players.map(q => {
             const t = s.ordenTiradas?.[q.id] ?? [];
@@ -330,7 +331,7 @@ function MesaOrden({ s }: { s: GameState }) {
                 <div className="mesa-orden-dados">
                   {t.length ? t.map((v, k) => <Dado key={k} v={v} grande={k === t.length - 1} tachado={k < t.length - 1} />) : <span className="mesa-orden-q">?</span>}
                 </div>
-                <span>{tirando ? (q.ia ? 'Tirando…' : 'Tira en su celular') : t.length ? 'Listo' : 'Esperando'}</span>
+                <span>{tirando ? (q.ia ? 'Tirando…' : 'Tirando en su dispositivo') : t.length ? 'Listo' : 'Esperando'}</span>
               </div>
             );
           })}

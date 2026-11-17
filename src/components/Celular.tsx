@@ -305,7 +305,7 @@ function CelEspera({ s, me, sala, convertirIA, compacta }: { s: GameState; me: P
   return (
     <section className={`cel-espera ${compacta ? 'compacta' : ''}`}>
       {s.ordenTiradas && !s.orden ? (
-        <div className="cel-espera-caja"><div style={{ flex: 1 }}><div className="cel-espera-tit">Tirada para el orden</div><div className="cel-nota">Cada jugador tira un D6 en su celular.</div><OrdenLista s={s} /></div></div>
+        <div className="cel-espera-caja"><div style={{ flex: 1 }}><div className="cel-espera-tit">Tirada para el orden</div><div className="cel-nota">Cada jugador tira un D6 en su dispositivo.</div><OrdenLista s={s} /></div></div>
       ) : (
       <div className="cel-espera-caja">
         <img src={IMG(personaje(p.personaje).img)} alt="" />

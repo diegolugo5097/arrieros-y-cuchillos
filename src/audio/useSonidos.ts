@@ -11,8 +11,9 @@ export function useSonidos(s: GameState | null, musica = true) {
   useEffect(() => {
     if (!musica) sonido.setAmbiente(null);
     if (!s) { if (musica) sonido.setAmbiente('pueblo'); return; }
-    const enMonte = s.phase === 'monte' && !!s.combat && s.combat.step !== 'hecho';
-    if (musica) sonido.setAmbiente(s.winner !== null ? null : enMonte || s.phase === 'monte' ? 'monte' : 'pueblo');
+    // Combate contra un mito → tema de combate; explorando el Monte → misterio; resto → pueblo
+    const enCombate = s.phase === 'monte' && !!s.combat && s.combat.step !== 'hecho';
+    if (musica) sonido.setAmbiente(s.winner !== null ? null : enCombate ? 'combate' : s.phase === 'monte' ? 'monte' : 'pueblo');
     const n = s.logN ?? 0;
     if (ultimo.current < 0) { ultimo.current = n; return; }
     const nuevas = s.log.filter(l => (l.n ?? 0) > ultimo.current);
