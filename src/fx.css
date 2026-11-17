@@ -408,3 +408,10 @@
 .mesa-flotante button img { width: 34px; height: 48px; }
 .mesa-flotante button b { font-family: 'Rye', serif; font-weight: 400; font-size: 26px; line-height: 1; }
 .mesa-flotante button.dorado { font-size: 13px; padding: 12px 4px; }
+/* Ícono flotante de Mis cartas: medio escondido en el borde, sale al tocar o pasar el mouse */
+.mesa-flotante { display: none; }
+.mesa-mano-flotante { position: fixed; right: 0; top: 58%; z-index: 75; display: flex; align-items: center; padding: 6px 10px 6px 8px; border: 3px solid #120a04; border-right: 0; border-radius: 16px 0 0 16px; background: rgba(244, 233, 210, .92); box-shadow: 0 6px 16px rgba(0, 0, 0, .5); cursor: pointer; transform: translateX(42%); opacity: .7; transition: transform .25s ease, opacity .25s ease; }
+.mesa-mano-flotante:hover, .mesa-mano-flotante:focus-visible, .mesa-mano-flotante:active { transform: translateX(0); opacity: 1; }
+.mesa-mano-flotante img { width: 30px; height: 42px; object-fit: cover; border-radius: 4px; }
+.mesa-mano-flotante b { position: absolute; left: -10px; top: -10px; min-width: 26px; height: 26px; border-radius: 99px; background: #c0392b; color: #fff; font-size: 14px; font-weight: 800; display: grid; place-items: center; border: 2px solid #120a04; padding: 0 5px; }
+.mesa-volver { position: fixed; right: max(12px, env(safe-area-inset-right)); bottom: 12px; z-index: 75; font-family: 'Nunito'; font-weight: 800; font-size: 15px; background: #e0a526; color: #2b1d12; border: 3px solid #120a04; border-radius: 99px; padding: 9px 18px; box-shadow: 0 6px 16px rgba(0, 0, 0, .55); cursor: pointer; animation: latidoBtn 1.2s infinite; }

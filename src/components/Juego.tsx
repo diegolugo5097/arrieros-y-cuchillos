@@ -13,9 +13,6 @@ interface Props {
   anuncio: Anuncio | null; cerrarAnuncio: () => void; onSalir: () => void; onNueva: () => void; convertirIA: (i: number) => void;
 }
 
-/** Ancho de la franja a la derecha de la mesa donde va el botón de Mis cartas. */
-const FRANJA = 92;
-
 export function Juego(props: Props) {
   const { s, yo, sala, anuncio, cerrarAnuncio, onSalir, onNueva } = props;
   const pnd = pendiente(s);
@@ -32,19 +29,28 @@ export function Juego(props: Props) {
   return (
     <>
       {mostrarMesa
-        ? <MesaTablero s={s} sala={sala} anuncio={anuncio} cerrarAnuncio={cerrarAnuncio} onNueva={onNueva} onSalir={onSalir} posiciones={posiciones} yo={yo} reservaDerecha={s.winner === null ? FRANJA : 0} />
+        ? <MesaTablero s={s} sala={sala} anuncio={anuncio} cerrarAnuncio={cerrarAnuncio} onNueva={onNueva} onSalir={onSalir} posiciones={posiciones} yo={yo} />
         : <ControlCelular {...props} espectador={!toca} onVerMesa={() => setVer('mesa')} />}
-      {mostrarMesa && s.winner === null && (
-        <div className="mesa-flotante">
-          {toca
-            ? <button className="dorado" onClick={() => setVer('auto')}><span>{pnd?.player === yo ? 'Te toca decidir' : 'Volver a mi turno'}</span><b>→</b></button>
-            : <button onClick={() => setVer('propio')}><img src={IMG('cartas/dorso-morral')} alt="" /><span>Mis cartas</span><b>{me.mano.length}</b></button>}
-        </div>
-      )}
+      {mostrarMesa && s.winner === null && (toca
+        ? <button className="mesa-volver" onClick={() => setVer('auto')}>{pnd?.player === yo ? 'Te toca decidir' : 'Volver a mi turno'} →</button>
+        : <BotonMano n={me.mano.length} onAbrir={() => setVer('propio')} />)}
       {!mostrarMesa && anuncio && <AnuncioFlotante a={anuncio} onCerrar={cerrarAnuncio} compacto={pnd?.player === yo} />}
       <BotonPantallaCompleta />
       <GirarAviso />
     </>
+  );
+}
+
+/**
+ * Ícono flotante de la mano: queda medio escondido en el borde derecho para no tapar la mesa.
+ * Un toque abre tus cartas; con el mouse encima sale completo.
+ */
+function BotonMano({ n, onAbrir }: { n: number; onAbrir: () => void }) {
+  return (
+    <button className="mesa-mano-flotante" onClick={onAbrir} aria-label={`Mis cartas: ${n}`} title="Mis cartas">
+      <img src={IMG('cartas/dorso-morral')} alt="" />
+      <b>{n}</b>
+    </button>
   );
 }
 
