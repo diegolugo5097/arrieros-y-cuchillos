@@ -23,8 +23,8 @@ export const HERRAMIENTAS: Record<ToolId, { nombre: string; precio: number; img:
 
 export const EDIFICIOS: Record<BuildingId, { nombre: string; herramientas: ToolId[]; guacas: number; img: string; imgDanada: string }> = {
   casa: { nombre: 'Casa', herramientas: [], guacas: 0, img: 'objetos/casa', imgDanada: 'objetos/casa-danada' },
-  plaza: { nombre: 'Plaza de Mercado', herramientas: ['martillo', 'puntilla'], guacas: 1, img: 'objetos/plaza', imgDanada: 'objetos/plaza-danada' },
-  iglesia: { nombre: 'Iglesia', herramientas: ['martillo', 'puntilla', 'serrucho'], guacas: 3, img: 'objetos/iglesia', imgDanada: 'objetos/iglesia-danada' },
+  plaza: { nombre: 'Plaza de Mercado', herramientas: ['martillo', 'puntilla'], guacas: 0, img: 'objetos/plaza', imgDanada: 'objetos/plaza-danada' },
+  iglesia: { nombre: 'Iglesia', herramientas: ['martillo', 'puntilla', 'serrucho'], guacas: 0, img: 'objetos/iglesia', imgDanada: 'objetos/iglesia-danada' },
 };
 export const ORDEN_EDIFICIOS: BuildingId[] = ['casa', 'plaza', 'iglesia'];
 
@@ -41,10 +41,10 @@ export const PERSONAJES: Character[] = [
     activa: ['Al vencer un mito: +1 guaca', 'Al vencer un mito: +1 oro', 'Pierde 1 oro'] },
   { id: 'jose-maria', nombre: 'Don José María Espinosa', rol: 'Negociante', img: 'personajes/jose-maria', momento: 'cualquiera',
     pasiva: 'Comerciante Hábil: 2 intercambios por turno y +1 oro la primera vez que vende en cada turno.',
-    activa: ['Roba 1 carta al azar de la mano de un rival', 'Toma 1 carta del descarte del Morral', 'Le da 1 carta de su mano a un rival'] },
+    activa: ['Roba 1 carta al azar de la mano de un rival', 'Toma 1 carta del descarte de Guacas', 'Le da 1 carta de su mano a un rival'] },
   { id: 'clementina', nombre: 'Doña Clementina Hurtado', rol: 'Abastecedora', img: 'personajes/clementina', momento: 'cualquiera',
     pasiva: 'Vendedora Experta: vende comida y materiales a +1 oro cada uno.',
-    activa: ['Toma 2 comidas del descarte del Morral', 'Toma 1 comida del descarte', 'Descarta 1 comida'] },
+    activa: ['Toma 2 comidas del descarte de Guacas', 'Toma 1 comida del descarte', 'Descarta 1 comida'] },
   { id: 'fernando', nombre: 'Don Fernando Cadavid', rol: 'Constructor', img: 'personajes/fernando', momento: 'cualquiera',
     pasiva: 'Manos Hábiles: las herramientas le cuestan 1 oro menos.',
     activa: ['Convierte 1 material en una Puntilla o un Martillo', 'Cambia 1 material por otro del Fondo', 'Descarta 1 material'] },
@@ -61,19 +61,19 @@ export const personaje = (id: CharacterId) => PERSONAJES.find(p => p.id === id)!
 export type ApoyoId = 'chapolera' | 'tulio' | 'abuelo' | 'genovevo' | 'benancio' | 'edilberto' | 'cura-audemio' | 'polonio';
 export interface Apoyo { id: ApoyoId; nombre: string; img: string; pasiva: string; activa: [string, string, string] }
 export const APOYOS: Apoyo[] = [
-  { id: 'chapolera', nombre: 'Alta Gracia la Chapolera', img: 'apoyo/chapolera', pasiva: 'Al robar del Morral en la Plaza, roba 2 y te quedas con 1.',
-    activa: ['Roba 1 carta extra del Morral', 'Toma 1 carta del descarte del Morral', 'Descarta 1 carta'] },
+  { id: 'chapolera', nombre: 'Alta Gracia la Chapolera', img: 'apoyo/chapolera', pasiva: 'Al robar guacas en la Plaza, roba 2 y te quedas con 1.',
+    activa: ['Roba 1 guaca extra', 'Toma 1 carta del descarte de Guacas', 'Descarta 1 carta'] },
   { id: 'tulio', nombre: 'Tulio el Peón', img: 'apoyo/tulio', pasiva: 'Al vencer un mito, eliges el material en vez de lanzar.',
     activa: ['Ganas 1 material a elección', 'Cambias 1 material por otro', 'Pierdes 1 material'] },
   { id: 'abuelo', nombre: 'El Abuelo', img: 'apoyo/abuelo', pasiva: 'Huyes con 4, 5 o 6.',
     activa: ['Mira las 3 primeras cartas del Monte y elige la de arriba', 'Mira la primera carta del Monte', 'Descarta 1 carta'] },
   { id: 'genovevo', nombre: 'El Borracho Genovevo', img: 'apoyo/genovevo', pasiva: 'Tus licores suman D8 + 1 y no te enguayabas.',
-    activa: ['Toma 1 licor del descarte y roba 1 carta del Morral', 'Toma 1 comida del descarte', 'Pierdes 1 oro'] },
+    activa: ['Toma 1 licor del descarte y roba 1 guaca', 'Toma 1 comida del descarte', 'Pierdes 1 oro'] },
   { id: 'benancio', nombre: 'Benancio el Carnicero', img: 'apoyo/benancio', pasiva: 'Tus carnes suman D8 + 1.',
     activa: ['Toma 2 carnes del descarte', 'Toma 1 carne del descarte', 'Descarta 1 comida'] },
   { id: 'edilberto', nombre: 'Edilberto el Trovador', img: 'apoyo/edilberto', pasiva: 'Tienes la pasiva del personaje de apoyo de un rival (eliges al contratarlo).',
-    activa: ['Usas la activa del personaje principal de un rival', 'Robas 1 carta del Morral', 'Descarta 1 carta'] },
-  { id: 'cura-audemio', nombre: 'El Cura Audemio', img: 'apoyo/cura-audemio', pasiva: 'La Iglesia te pide 1 guaca menos.',
+    activa: ['Usas la activa del personaje principal de un rival', 'Robas 1 guaca', 'Descarta 1 carta'] },
+  { id: 'cura-audemio', nombre: 'El Cura Audemio', img: 'apoyo/cura-audemio', pasiva: 'Cada vez que construyes un edificio, recibes 1 guaca.',
     activa: ['+1 guaca', '+1 oro', 'Pierdes 1 oro'] },
   { id: 'polonio', nombre: 'Don Polonio el Tendero', img: 'apoyo/polonio', pasiva: 'Compras materiales a 1 oro.',
     activa: ['+2 oro', '+1 oro', 'Pierdes 1 oro'] },
@@ -131,7 +131,7 @@ export type DichoId = 'cria-fama' | 'herrero' | 'caballo' | 'lobos' | 'abarca' |
 export const DICHOS: { id: DichoId; nombre: string; texto: string; guardable?: boolean }[] = [
   { id: 'cria-fama', nombre: 'Cría fama y échate a dormir', texto: 'Pon un mito del descarte encima del mazo del Monte. Ganas 2 oro.' },
   { id: 'herrero', nombre: 'En casa de herrero, cuchillo de palo', texto: 'Todos descartan 1 material.' },
-  { id: 'caballo', nombre: 'A caballo regalado no se le mira el diente', texto: 'Toma 1 carta del descarte del Morral.' },
+  { id: 'caballo', nombre: 'A caballo regalado no se le mira el diente', texto: 'Toma 1 carta del descarte de Guacas.' },
   { id: 'lobos', nombre: 'Quien con lobos se junta, a aullar aprende', texto: 'Lanza 1 D6: con 5 o 6 ganas 1 guaca.' },
   { id: 'abarca', nombre: 'El que mucho abarca poco aprieta', texto: 'Todos descartan 1 carta de la mano.' },
   { id: 'arbol', nombre: 'De árbol caído todos hacen leña', texto: 'Todos lanzan 1 D6: 1–2 ganan 1 oro, 3–4 ganan 2, 5–6 ganan 3.' },
@@ -140,19 +140,19 @@ export const DICHOS: { id: DichoId; nombre: string; texto: string; guardable?: b
   { id: 'gato', nombre: 'Le metieron gato por liebre', texto: 'Nadie usa habilidades de personajes hasta el final de la ronda.' },
   { id: 'pollo', nombre: 'El que no arriesga un pollo no tiene un huevo', texto: 'Todos entregan su mejor equipo; se mezclan y se reparte uno a cada uno.' },
   { id: 'mal-que', nombre: 'No hay mal que por bien no venga', texto: 'Mira tantas cartas del Monte como jugadores y elige cuál queda arriba.' },
-  { id: 'llora', nombre: 'El que no llora no mama', texto: 'Se revelan del Morral tantas cartas como jugadores. Cada uno toma una, empezando por ti.' },
+  { id: 'llora', nombre: 'El que no llora no mama', texto: 'Se revelan tantas guacas como jugadores. Cada uno toma una, empezando por ti.' },
   { id: 'dime', nombre: 'Dime con quién andas y te diré quién eres', texto: 'Roba 1 carta al azar de la mano de un rival.' },
   { id: 'zorro', nombre: 'Zorro viejo no cae en trampa', texto: 'Guárdala. Anula el próximo castigo que sufras.', guardable: true },
   { id: 'palo', nombre: 'De tal palo tal astilla', texto: 'Todos lanzan 1 D6; el más alto pelea contra un mito de ataque 6 que da 3 oro + 1 guaca.' },
   { id: 'borrachos', nombre: 'Los borrachos y los niños siempre dicen la verdad', texto: 'Todos pasan 2 cartas de su mano al jugador de la derecha.' },
-  { id: 'gratis', nombre: 'Gratis hasta una patada', texto: 'Todos roban 1 carta del Morral y ganan 1 oro.' },
+  { id: 'gratis', nombre: 'Gratis hasta una patada', texto: 'Todos roban 1 guaca y ganan 1 oro.' },
   { id: 'mal-tiempo', nombre: 'A mal tiempo, buena cara', texto: 'Guárdala. Anula el castigo del mito que acabas de perder.', guardable: true },
   { id: 'consejos', nombre: 'El que no recibe consejos no llega a viejo', texto: 'Descarta 1 carta de tu mano: un rival descarta 1 equipo o 1 carta al azar de su mano.' },
   { id: 'ocasion', nombre: 'La ocasión hace al ladrón', texto: 'Elige un mito del descarte y pelealo. Si ganas, recibes el doble de oro.' },
 ];
 export const dicho = (id: DichoId) => DICHOS.find(d => d.id === id)!;
 
-// ---------------- Morral ----------------
+// ---------------- Mazo de Guacas (equipo, comida, exageraciones) ----------------
 export type ExagId = 'mato-tigre' | 'filo' | 'bravo' | 'aburrido' | 'lombriz' | 'perro' | 'carro' | 'poncho' | 'marrano'
   | 'gorgojo' | 'mama' | 'otro-perro' | 'radio' | 'lora' | 'bizco' | 'tamal';
 export type ExagMomento = 'turno' | 'victoria-rival' | 'combate-rival' | 'combate-propio' | 'construir' | 'objetivo';
@@ -219,7 +219,7 @@ export const EVENTOS: { id: EventoId; nombre: string; tipo: string; texto: strin
   { id: 'madremonte', nombre: 'Madre Monte se Enfada', tipo: 'Desafío', texto: 'Los mitos tienen +3 de ataque y pagan el doble de oro + 1 guaca.' },
   { id: 'robo', nombre: 'Robo en la Plaza', tipo: 'Desafío', texto: 'Quien tenga más oro pierde 3.' },
   { id: 'rebaja', nombre: 'Rebaja en Herramientas', tipo: 'Oportunidad', texto: 'Las herramientas cuestan 2 oro menos (mínimo 2).' },
-  { id: 'vendimia', nombre: 'Fiesta de la Vendimia', tipo: 'Oportunidad', texto: 'Todos ganan 2 oro y roban 1 carta del Morral.' },
+  { id: 'vendimia', nombre: 'Fiesta de la Vendimia', tipo: 'Oportunidad', texto: 'Todos ganan 2 oro y roban 1 guaca.' },
   { id: 'errantes', nombre: 'Aparecen los Arrieros Errantes', tipo: 'Oportunidad', texto: 'En la Plaza puedes comprar 1 guaca por 5 oro.' },
   { id: 'reparacion', nombre: 'Reparación del Camino', tipo: 'Oportunidad', texto: 'Reparar es gratis.' },
   { id: 'cosecha', nombre: 'Final de la Cosecha', tipo: 'Oportunidad', texto: 'La cosecha da el doble.' },

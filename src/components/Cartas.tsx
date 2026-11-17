@@ -39,19 +39,19 @@ export function Carta({ tipo, titulo, linea, texto, img, fondo, fondoCubre, esq,
 
 const Badge = ({ v, titulo }: { v: ReactNode; titulo?: string }) => <b className="cj-badge" title={titulo}>{v}</b>;
 
-/** Propiedades de carta para una carta del Morral. */
+/** Propiedades de carta para una guaca (carta del mazo de Guacas: equipo, comida o exageración). */
 export function propsMorral(card: MorralCard): CartaProps {
   if (card.kind === 'equipo') {
     return { tipo: 'equipo', titulo: card.nombre, linea: SLOT_NOMBRE[card.slot], img: card.img, esq: [<Badge v={`+${card.golpe}`} titulo="Golpe" />, <Badge v={`+${card.golpe}`} titulo="Golpe" />],
-      texto: card.nota ?? `Suma ${card.golpe} de golpe en cada combate.`, pie: <span>Equipo</span> };
+      texto: card.nota ?? `Suma ${card.golpe} de golpe en cada combate.`, pie: <span>Guaca · Equipo</span> };
   }
   if (card.kind === 'comida') {
     const licor = card.tipo === 'licor';
     return { tipo: licor ? 'licor' : 'comida', titulo: card.nombre, linea: FOOD_NOMBRE[card.tipo], img: card.img, esq: [<Badge v="D8" />, <Badge v="D8" />],
-      texto: licor ? 'Suma 1 D8 en combate. Si pierdes, te enguayabas.' : 'Suma 1 D8 en combate o sabotea a un rival.', pie: <span>Comida</span> };
+      texto: licor ? 'Suma 1 D8 en combate. Si pierdes, te enguayabas.' : 'Suma 1 D8 en combate o sabotea a un rival.', pie: <span>Guaca · {licor ? 'Licor' : 'Comida'}</span> };
   }
   const e = exag(card.id);
-  return { tipo: 'exag', titulo: e.nombre, linea: 'Exageración paisa', fondo: 'cartas/ilustracion-exageraciones', fondoCubre: true, esq: [<Badge v="«" />, <Badge v="»" />], texto: e.texto, pie: <span>Morral</span> };
+  return { tipo: 'exag', titulo: e.nombre, linea: 'Exageración paisa', fondo: 'cartas/ilustracion-exageraciones', fondoCubre: true, esq: [<Badge v="«" />, <Badge v="»" />], texto: e.texto, pie: <span>Guaca · Exageración</span> };
 }
 
 export function propsMito(id: string, ataque?: number, recompensa?: { oro: number; guacas: number }): CartaProps {

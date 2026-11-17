@@ -101,10 +101,11 @@ function useAvisosMano(s: GameState, me: Player, propia: React.MutableRefObject<
     const salen = [...prev.values()].filter(c => !ahora.has(c.uid));
     const mia = Date.now() - propia.current < 2500;
     let texto = '', tipo: 'gana' | 'pierde' = 'gana';
+
     if (salen.length && !mia) {
       const razon = [...nuevos].reverse().find(t => (t.includes(me.nombre) || /^Todos/.test(t)) && /roba|descarta|pasan|pierde|quita|da /.test(t));
       texto = `Se fue de tu mano: ${salen.map(nombreCarta).join(', ')}${entran.length ? ` · Recibiste: ${entran.map(nombreCarta).join(', ')}` : ''}${razon ? ` — ${razon}` : ''}`; tipo = 'pierde';
-    } else if (entran.length) texto = `${entran.length > 1 ? `+${entran.length} cartas` : 'Nueva carta'}: ${entran.map(nombreCarta).join(', ')}`;
+    } else if (entran.length) texto = `${entran.length > 1 ? `+${entran.length} guacas` : 'Nueva guaca'} a tu mano: ${entran.map(nombreCarta).join(', ')}`;
     if (!texto) return;
     setAviso({ id: Date.now(), texto, tipo });
     const t = setTimeout(() => setAviso(null), 4000);
@@ -154,7 +155,10 @@ function OrdenLista({ s }: { s: GameState }) {
 /** Carta en grande, a pantalla completa, con su acción. */
 function CartaGrande({ s, me, card, miTurno, dispatch, onCerrar }: { s: GameState; me: Player; card: MorralCard; miTurno: boolean; dispatch: (a: Action) => void; onCerrar: () => void }) {
   const [lanzando, setLanzando] = useState(false);
+  const [confirmar, setConfirmar] = useState(false);
   const acc = accionCarta(s, me, card, miTurno);
+  // Si ya tienes algo equipado en esa ranura, se pregunta antes de reemplazarlo
+  const actual = card.kind === 'equipo' ? me.equipo[card.slot] : undefined;
   const w = Math.floor(horizontal() ? Math.min(380, (altoPantalla() - 36) * 5 / 7) : Math.min(anchoPantalla() - 48, 380, (altoPantalla() - 190) * 5 / 7));
   const lanzar = () => {
     if (!acc.accion || lanzando) return;
@@ -170,8 +174,23 @@ function CartaGrande({ s, me, card, miTurno, dispatch, onCerrar }: { s: GameStat
       </div>
       {lanzando && <div className="cel-a-la-mesa">¡A la mesa!</div>}
       <div className="cel-verla-botones" onClick={e => e.stopPropagation()}>
-        <button className={`cel-accion ${acc.tono}`} disabled={!acc.accion || lanzando} onClick={lanzar}>{acc.label}</button>
-        <button className="cel-accion claro sec" onClick={onCerrar}>Cerrar</button>
+        {confirmar && actual && card.kind === 'equipo' ? (
+          <div className="cel-reemplazo">
+            <div className="cel-reemplazo-tit">¿Reemplazar tu {SLOT_NOMBRE[card.slot].toLowerCase()}?</div>
+            <div className="cel-reemplazo-cmp">
+              <div><img src={IMG(actual.img)} alt="" /><b>{actual.nombre}</b><span>+{actual.golpe}</span><em>Se descarta</em></div>
+              <i aria-hidden="true">→</i>
+              <div className="nuevo"><img src={IMG(card.img)} alt="" /><b>{card.nombre}</b><span>+{card.golpe}</span><em>{card.golpe > actual.golpe ? `Ganas +${card.golpe - actual.golpe}` : card.golpe < actual.golpe ? `Pierdes ${actual.golpe - card.golpe}` : 'Igual golpe'}</em></div>
+            </div>
+            <button className="cel-accion dorado" onClick={lanzar}>Sí, reemplazar</button>
+            <button className="cel-accion claro sec" onClick={() => setConfirmar(false)}>No, dejar el {actual.nombre}</button>
+          </div>
+        ) : <>
+          <button className={`cel-accion ${acc.tono}`} disabled={!acc.accion || lanzando} onClick={() => (actual && acc.accion ? setConfirmar(true) : lanzar())}>
+            {actual && acc.accion ? `Equipar (reemplaza ${actual.nombre})` : acc.label}
+          </button>
+          <button className="cel-accion claro sec" onClick={onCerrar}>Cerrar</button>
+        </>}
       </div>
     </div>
   );
@@ -194,7 +213,6 @@ function Recursos({ p }: { p: Player }) {
   return (
     <div className="cel-recursos">
       <span><img src={IMG('objetos/oro')} alt="Oro" />{p.oro}</span>
-      <span><img src={IMG('objetos/guaca')} alt="Guacas" />{p.guacas}</span>
       {(['G', 'M', 'B'] as MaterialId[]).map(k => <span key={k}><img src={IMG(MATERIALES[k].img)} alt={MATERIALES[k].nombre} />{p.mat[k]}</span>)}
       {(['puntilla', 'martillo', 'serrucho'] as ToolId[]).map(t => p.tools[t] > 0 && <span key={t}><img src={IMG(HERRAMIENTAS[t].img)} alt={HERRAMIENTAS[t].nombre} />{p.tools[t]}</span>)}
     </div>
@@ -263,7 +281,6 @@ function CelZona({ s, me, dispatch, onVer }: { s: GameState; me: Player; dispatc
         <div className="cel-req">
           <span className={req.matsOk ? 'ok' : ''}>G·M·B</span>
           {EDIFICIOS[sig].herramientas.map(t => <span key={t} className={me.tools[t] > 0 ? 'ok' : ''}>{HERRAMIENTAS[t].nombre}</span>)}
-          {req.guacas > 0 && <span className={req.guacasOk ? 'ok' : ''}>{req.guacas} guaca{req.guacas > 1 ? 's' : ''}</span>}
         </div>
       )}
       {s.phase === 'campo' && <div className="cel-req"><span className="ok">Cosechaste al llegar</span></div>}
@@ -339,7 +356,7 @@ function accionCarta(s: GameState, me: Player, card: MorralCard, miTurno: boolea
 }
 function CelMano({ s: _s, me, onVer }: { s: GameState; me: Player; onVer: (uid: number) => void }) {
   const mano = me.mano;
-  if (!mano.length) return <section className="cel-mano vacia"><div>Tu mano está vacía.</div><div className="cel-nota">Robas 1 carta del Morral cada vez que pasas por la Plaza.</div></section>;
+  if (!mano.length) return <section className="cel-mano vacia"><div>No tienes guacas en la mano.</div><div className="cel-nota">Robas 1 guaca cada vez que pasas por la Plaza.</div></section>;
   const w = horizontal() ? Math.max(130, Math.min(190, Math.floor((altoPantalla() - 60) * 5 / 7))) : Math.floor((anchoPantalla() - 14 * 2 - 12) / 2);
   return (
     <section className="cel-mano" aria-label="Tu mano">
@@ -350,7 +367,7 @@ function CelMano({ s: _s, me, onVer }: { s: GameState; me: Player; onVer: (uid: 
           </button>
         ))}
       </div>
-      <div className="cel-mano-pie">{mano.length}/{limiteMano(me)} cartas · toca una para verla en grande{me.guardados.length > 0 && <> · guardados: {me.guardados.map((g, i) => <DichoMini key={i} id={g} />)}</>}</div>
+      <div className="cel-mano-pie">{mano.length}/{limiteMano(me)} guacas en la mano · toca una para verla en grande{me.guardados.length > 0 && <> · guardados: {me.guardados.map((g, i) => <DichoMini key={i} id={g} />)}</>}</div>
     </section>
   );
 }
@@ -387,6 +404,19 @@ function CelPueblo({ s, me, dispatch, miTurno, chat, enviarChat, onSalir }: { s:
 }
 
 // ---------------- Combate ----------------
+/** Texto de la recompensa, contando si un rival la anuló («Mató el tigre…») o se quedó con el oro («Filo»). */
+function textoRecompensa(s: GameState, c: NonNullable<GameState['combat']>, rec: { oro: number; guacas: number }) {
+  const recientes = s.log.slice(-14).map(e => e.t);
+  const anulo = [...recientes].reverse().find(t => t.includes('sin recompensa'));
+  const robo = [...recientes].reverse().find(t => t.includes('se queda con'));
+  const partes = [rec.oro ? `+${rec.oro} oro` : '', rec.guacas ? `+${rec.guacas} guaca${rec.guacas === 1 ? '' : 's'} (cartas a tu mano)` : '', '+1 material'].filter(Boolean).join(', ');
+  let extra = '';
+  if (anulo) extra = ` · ${anulo.split(' juega')[0]} te anuló el oro y las guacas con «Mató el tigre».`;
+  else if (robo) extra = ` · ${robo.split(' juega')[0]} se quedó con tu oro con «Filo».`;
+  void c;
+  return `¡Victoria! ${partes}${extra}`;
+}
+
 function CelCombate({ s, me, dispatch, onCerrar }: { s: GameState; me: Player; dispatch: (a: Action) => void; onCerrar: () => void }) {
   const c = s.combat!;
   const m = mito(c.mitoId);
@@ -414,7 +444,7 @@ function CelCombate({ s, me, dispatch, onCerrar }: { s: GameState; me: Player; d
         {c.step === 'decidir' && <div className="cel-nota">Probabilidad de ganar: <b>{Math.round(prob * 100)}%</b>{comidas.length > 0 && <> · con comida <b>{Math.round(probC * 100)}%</b></>}</div>}
         {c.step === 'tirada' && <div className="cel-nota">{poder! >= ataque ? 'Vas ganando.' : `Te faltan ${ataque - poder!}.`} Cuando confirmes, tus rivales tendrán unos segundos para sabotear.</div>}
         {(c.step === 'rivales' || c.step === 'victoria') && <div className="cel-nota">Tus rivales deciden en sus celulares…</div>}
-        {c.step === 'hecho' && <div className={`cel-resultado ${c.result === 'gana' || c.result === 'escapa' ? 'ok-txt' : 'err-txt'}`}>{c.result === 'gana' ? `¡Victoria! +${rec.oro} oro, +${rec.guacas} guaca${rec.guacas === 1 ? '' : 's'} y 1 material` : c.result === 'escapa' ? 'Escapaste sin castigo' : `Perdiste: ${m.texto}`}</div>}
+        {c.step === 'hecho' && <div className={`cel-resultado ${c.result === 'gana' || c.result === 'escapa' ? 'ok-txt' : 'err-txt'}`}>{c.result === 'gana' ? textoRecompensa(s, c, rec) : c.result === 'escapa' ? 'Escapaste sin castigo' : `Perdiste: ${m.texto}`}</div>}
       </section>
       {c.step === 'tirada' && !c.food && comidas.length > 0 && (
         <section className="cel-comer">

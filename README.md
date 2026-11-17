@@ -55,7 +55,7 @@ En celulares el juego se ve en horizontal; si el celular está vertical, aparece
 - los dichos y eventos (se quedan entre 9 y 16 segundos, con una barra de tiempo);
 - el pueblo de cada jugador.
 
-Las cartas jugadas cruzan volando hasta el mapa o el combate, los mitos aparecen en grande, los dados ruedan y el resultado cae como un sello. La mesa ocupa toda la pantalla. Un botón flotante con el Morral y tu número de cartas aparece al tocar la pantalla (o al cambiar tu mano) y se oculta solo a los pocos segundos; tócalo para ver tu mano sin esperar tu turno.
+Las cartas jugadas cruzan volando hasta el mapa o el combate, los mitos aparecen en grande, los dados ruedan y el resultado cae como un sello. La mesa ocupa toda la pantalla. Un botón flotante con el dorso de las guacas y tu número de cartas aparece al tocar la pantalla (o al cambiar tu mano) y se oculta solo a los pocos segundos; tócalo para ver tu mano sin esperar tu turno.
 
 **Cuando te toca jugar o intervenir, la pantalla cambia sola a tus controles:**
 - Tu turno: pestañas **Mano**, **Mi turno** (acciones de la zona y botón para avanzar) y **Pueblo**, con un botón para **Ver la mesa**.
@@ -118,8 +118,12 @@ El botón de sonido permite apagar o ajustar la música y los efectos por separa
 
 - De 2 a 4 jugadores; cada puesto puede ser una persona o la IA.
 - Al empezar, cada jugador tira un D6 desde su celular: el que saque más arranca y los demás siguen de mayor a menor (los empates vuelven a tirar). El primer jugador rota cada ronda siguiendo ese orden.
-- Todos empiezan con 8 cartas del Morral, sin oro ni materiales. El límite de mano es 10 (12 con el Carriel).
-- En la pestaña **Mano** ves todas tus cartas; al tocar una se ve completa en grande, con su acción. Si otro jugador te quita cartas, te sale un aviso con cuáles y por qué.
+- Todos empiezan con 8 guacas (cartas del mazo de Guacas), sin oro ni materiales. El límite de mano es 10 (12 con el Carriel).
+- **Guacas:** son las cartas del mazo de Guacas: equipo, comida y exageraciones paisas. Robas 1 en cada Plaza, y al vencer un mito recibes las guacas que indica (1 a 3 cartas a tu mano). También las dan algunos dichos, apoyos y eventos. Los edificios no piden guacas, solo materiales y herramientas.
+- En la pestaña **Mano** ves todas tus guacas; al tocar una se ve completa en grande, con su acción.
+- Avisos en pantalla: si otro jugador te quita cartas, te dice cuáles y por qué; al recibir guacas, te dice cuáles llegaron a tu mano.
+- Al equiparte algo en una ranura ocupada (arma, prenda o montura), el juego pregunta si quieres reemplazarlo y muestra la comparación de golpe; lo anterior se descarta.
+- Al vencer un mito ganas oro, guacas (cartas) y 1 material. Un rival puede anularte el oro y las guacas con «Mató el tigre» o quedarse con el oro con «Filo»; la pantalla de resultado te lo dice.
 - El botón **Cómo jugar** tiene un resumen; el reglamento completo es el documento consolidado.
 
 ## Estructura
@@ -157,5 +161,5 @@ El motor sigue el reglamento consolidado. Estas son las simplificaciones para la
 
 ## Balance (simulación de 600 partidas entre IAs)
 
-- Inicio con 8 cartas, sin oro ni materiales, y límite de mano de 10 (12 con Carriel): mediana de 10 rondas por partida. Los valores se cambian en `INICIO` y `limiteMano`, en `src/game/engine.ts`.
+- Inicio con 8 guacas en la mano, sin oro ni materiales, y límite de mano de 10 (12 con Carriel): mediana de 9 rondas por partida. Los valores se cambian en `INICIO` y `limiteMano`, en `src/game/engine.ts`.
 - Don José María (44 %) y Doña Clementina (42 %) ganan más seguido; Don Jairo (24 %), Doña Claudia (28 %) y Don Wilson (27 %) menos. Conviene confirmarlo en mesa antes de ajustar habilidades.

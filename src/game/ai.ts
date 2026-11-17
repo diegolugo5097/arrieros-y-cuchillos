@@ -6,7 +6,7 @@ import {
   puedeConstruir, requisitos, totalGolpe, valorCarta, valorVenta, Bundle, maxCompras,
 } from './engine';
 
-export const puntaje = (p: Player) => edificiosOk(p) * 10 + p.guacas * 2 + p.oro * 0.4 + totalGolpe(p) * 0.3;
+export const puntaje = (p: Player) => edificiosOk(p) * 10 + p.mano.length * 0.8 + p.oro * 0.4 + totalGolpe(p) * 0.3;
 const lider = (s: GameState, excepto: number, candidatos?: number[]) => {
   const ids = (candidatos ?? s.players.map(p => p.id)).filter(i => i !== excepto);
   return ids.sort((a, b) => puntaje(s.players[b]) - puntaje(s.players[a]))[0];

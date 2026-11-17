@@ -170,7 +170,7 @@ export function MesaTablero({ s, sala, anuncio, cerrarAnuncio, onNueva, onSalir,
           <aside className="mesa-mercado" aria-label="Mazos y mercado">
             <div className="mesa-mazos">
               <div><img src={IMG('cartas/dorso-monte')} alt="Mazo del Monte" /><span>Monte · {s.monteCount ?? s.monte.length}</span></div>
-              <div><img src={IMG('cartas/dorso-morral')} alt="Mazo del Morral" /><span>Morral · {s.morralCount ?? s.morral.length}</span></div>
+              <div><img src={IMG('cartas/dorso-morral')} alt="Mazo de Guacas" /><span>Guacas · {s.morralCount ?? s.morral.length}</span></div>
             </div>
             <div className="mesa-sub">Herramientas del Taller</div>
             <div className="mesa-herramientas">
@@ -227,7 +227,6 @@ export function MesaTablero({ s, sala, anuncio, cerrarAnuncio, onNueva, onSalir,
                 </div>
                 <div className="mesa-pueblo-rec">
                   <span><img src={IMG('objetos/oro')} alt="Oro" />{q.oro}</span>
-                  <span><img src={IMG('objetos/guaca')} alt="Guacas" />{q.guacas}</span>
                   {(['G', 'M', 'B'] as MaterialId[]).map(k => <span key={k}><img src={IMG(MATERIALES[k].img)} alt={MATERIALES[k].nombre} />{q.mat[k]}</span>)}
                   <span><img src={IMG('objetos/machete')} alt="Golpe de equipo" />+{totalGolpe(q)}</span>
                   {(['puntilla', 'martillo', 'serrucho'] as const).map(t => q.tools[t] > 0 && <span key={t}><img src={IMG(HERRAMIENTAS[t].img)} alt={HERRAMIENTAS[t].nombre} />{q.tools[t]}</span>)}

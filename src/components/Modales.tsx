@@ -67,7 +67,7 @@ export function Victoria({ s, onNueva, textoNueva = 'Volver al inicio' }: { s: G
           <p>Construyó su Casa, su Plaza de Mercado y su Iglesia en la ronda {s.round}.</p>
           <div className="victoria-edif">{ORDEN_EDIFICIOS.map(b => <img key={b} src={IMG(EDIFICIOS[b].img)} alt="" />)}</div>
           <table className="tabla-final">
-            <thead><tr><th>Jugador</th><th>Edificios</th><th>Guacas</th><th>Oro</th></tr></thead>
+            <thead><tr><th>Jugador</th><th>Edificios</th><th>Guacas encontradas</th><th>Oro</th></tr></thead>
             <tbody>{s.players.map(p => <tr key={p.id}><td style={{ color: p.color }}>{p.nombre}</td><td>{ORDEN_EDIFICIOS.filter(b => p.edificios[b]).length}</td><td>{p.guacas}</td><td>{p.oro}</td></tr>)}</tbody>
           </table>
           <button className="btn grande" onClick={onNueva}>{textoNueva}</button>
@@ -84,7 +84,7 @@ export function Reglas({ onCerrar }: { onCerrar: () => void }) {
       <p><b>Objetivo:</b> ser el primero en construir la Casa, la Plaza de Mercado y la Iglesia, en ese orden y sin daños, con al menos 1 comida en la mano y 1 oro. Todos empiezan con 8 cartas y sin oro ni materiales; el orden de turnos se decide tirando un D6 (límite de mano: 10).</p>
       <h3>El turno: 4 zonas en orden</h3>
       <ol>
-        <li><b>Plaza:</b> robas 1 carta del Morral. Puedes contratar un personaje de apoyo (3 oro, luego 1 oro por turno), hacer 1 intercambio y equiparte (un arma, una prenda y una montura o calzado).</li>
+        <li><b>Plaza:</b> robas 1 guaca (carta del mazo de Guacas: equipo, comida o exageración). Puedes contratar un personaje de apoyo (3 oro, luego 1 oro por turno), hacer 1 intercambio y equiparte (un arma, una prenda y una montura o calzado).</li>
         <li><b>Monte:</b> robas 1 carta. Si es un dicho, se aplica. Si es un mito, peleas o huyes (D6: 5 o 6).</li>
         <li><b>Taller:</b> compras 1 herramienta de las 3 reveladas, construyes 1 edificio y reparas edificios dañados (1 material cada uno).</li>
         <li><b>Campo:</b> cosechas 1 oro + 1 por edificio sano, y compras o vendes en el Fondo del Pueblo.</li>
@@ -94,7 +94,7 @@ export function Reglas({ onCerrar }: { onCerrar: () => void }) {
       <table className="tabla-reglas">
         <thead><tr><th>Nivel</th><th>Ataque</th><th>Recompensa</th></tr></thead>
         <tbody>
-          <tr><td>Rural</td><td>5–7</td><td>2 oro + 1 guaca</td></tr>
+          <tr><td>Rural</td><td>5–7</td><td>2 oro + 1 guaca (carta)</td></tr>
           <tr><td>Siniestro</td><td>8–10</td><td>3 oro + 1 guaca</td></tr>
           <tr><td>Épico</td><td>11–14</td><td>5 oro + 2 guacas</td></tr>
           <tr><td>Ancestral</td><td>15–18</td><td>8 oro + 3 guacas</td></tr>
@@ -103,9 +103,9 @@ export function Reglas({ onCerrar }: { onCerrar: () => void }) {
       <h3>Precios</h3>
       <p>Materiales: compra 2, venta 1 · Puntilla 4 · Martillo 6 · Serrucho 8 (venta a la mitad) · Alimento se vende a 1, carne y licor a 2.</p>
       <h3>Edificios</h3>
-      <p>Casa: Guadua + Madera + Barro · Plaza: lo mismo + Martillo + Puntilla + 1 guaca · Iglesia: lo mismo + Martillo + Puntilla + Serrucho + 3 guacas.</p>
+      <p>Casa: Guadua + Madera + Barro · Plaza de Mercado: lo mismo + Martillo + Puntilla · Iglesia: lo mismo + Martillo + Puntilla + Serrucho.</p>
       <h3>Cartas especiales</h3>
-      <p><b>Dichos</b> (Monte): se aplican al salir; algunos se guardan. <b>Exageraciones</b> (Morral): se juegan desde la mano, algunas en tu turno y otras cuando un rival pelea o vence. <b>Eventos:</b> cada 3 rondas, duran una ronda.</p>
+      <p><b>Dichos</b> (Monte): se aplican al salir; algunos se guardan. <b>Exageraciones</b> (guacas): se juegan desde la mano, algunas en tu turno y otras cuando un rival pelea o vence. <b>Eventos:</b> cada 3 rondas, duran una ronda.</p>
       <h3>Habilidades</h3>
       <p>Cada personaje tiene una pasiva y una activa con D6: 6–5 éxito total, 4–3 éxito mediano, 2 sin efecto, 1 calamidad. Cada activa se usa una vez por turno.</p>
     </Modal>

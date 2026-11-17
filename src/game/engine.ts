@@ -117,6 +117,17 @@ function robarMorral(s: GameState): MorralCard | null {
   return s.morral.pop() ?? null;
 }
 function darMorral(s: GameState, p: Player, n = 1) { for (let i = 0; i < n; i++) { const c = robarMorral(s); if (c) p.mano.push(c); } }
+/**
+ * Guacas: son cartas del mazo de Guacas (equipo, comida y exageraciones paisas) que llegan a la mano.
+ * p.guacas lleva la cuenta de cuántas ha encontrado el jugador en la partida.
+ */
+function darGuacas(s: GameState, p: Player, n: number) {
+  if (n <= 0) return;
+  const antes = p.mano.length; darMorral(s, p, n);
+  const nuevas = p.mano.slice(antes);
+  p.guacas += nuevas.length;
+  if (nuevas.length) log(s, `${p.nombre} recibe ${nuevas.length} guaca${nuevas.length === 1 ? '' : 's'}.`, p.id);
+}
 function robarMonte(s: GameState): MonteCard | null {
   if (!s.monte.length) { s.monte = shuffle(s, s.monteDescarte); s.monteDescarte = []; }
   return s.monte.pop() ?? null;
@@ -361,13 +372,12 @@ export function valorVenta(s: GameState, p: Player, item: { k: 'mat' } | { k: 't
 // ---------------- Construcción ----------------
 export function requisitos(s: GameState, p: Player, b: BuildingId) {
   const def = EDIFICIOS[b];
-  let guacas = def.guacas;
-  if (b === 'iglesia' && pasivaApoyo(p, 'cura-audemio') && !habilidadesBloqueadas(s)) guacas -= 1;
+  const guacas = 0; void def;
   const faltanTools = def.herramientas.filter(t => p.tools[t] < 1);
   const comodin = p.mano.find(c => c.kind === 'exag' && c.id === 'mama');
   const toolsOk = faltanTools.length === 0 || (faltanTools.length === 1 && !!comodin);
   const matsOk = p.mat.G >= 1 && p.mat.M >= 1 && p.mat.B >= 1;
-  return { guacas, faltanTools, comodin, toolsOk, matsOk, guacasOk: p.guacas >= guacas, ok: toolsOk && matsOk && p.guacas >= guacas };
+  return { guacas, faltanTools, comodin, toolsOk, matsOk, guacasOk: true, ok: toolsOk && matsOk };
 }
 export function puedeConstruir(s: GameState) {
   const p = cur(s);
@@ -510,8 +520,9 @@ function siguienteVictoria(s: GameState) {
 function cobrarRecompensa(s: GameState) {
   const c = s.combat!; const p = s.players[c.fighter];
   const r = c.reward!;
-  p.oro += r.oro; p.guacas += r.guacas;
-  if (r.oro || r.guacas) log(s, `${p.nombre} gana ${r.oro} oro y ${r.guacas} guaca${r.guacas === 1 ? '' : 's'}.`, p.id);
+  p.oro += r.oro;
+  if (r.oro) log(s, `${p.nombre} gana ${r.oro} oro.`, p.id);
+  darGuacas(s, p, r.guacas);
   // material
   if (pasivaApoyo(p, 'tulio') && !habilidadesBloqueadas(s) && !p.ia) {
     push(s, { kind: 'material-gratis', player: p.id, title: 'Tulio: elige tu material', options: matOptions() });
@@ -620,10 +631,10 @@ function resolverDicho(s: GameState, id: DichoId) {
     case 'herrero': for (const q of s.players) quitarMaterial(s, q, 1); break;
     case 'caballo': {
       const pool = s.morralDescarte.slice(-8);
-      if (pool.length) push(s, { kind: 'tomar-descarte', player: p.id, title: 'Toma 1 carta del descarte del Morral', options: pool.map(c => ({ id: String(c.uid), label: nombreCarta(c), img: imgCarta(c) })) });
+      if (pool.length) push(s, { kind: 'tomar-descarte', player: p.id, title: 'Toma 1 guaca del descarte', options: pool.map(c => ({ id: String(c.uid), label: nombreCarta(c), img: imgCarta(c) })) });
       break;
     }
-    case 'lobos': { const r = d(s, 6); log(s, `${p.nombre} saca ${r}.`, p.id); if (r >= 5) { p.guacas++; log(s, `${p.nombre} gana 1 guaca.`, p.id); } break; }
+    case 'lobos': { const r = d(s, 6); log(s, `${p.nombre} saca ${r}.`, p.id); if (r >= 5) darGuacas(s, p, 1); break; }
     case 'abarca': for (const q of s.players) { const x = quitarPeorCarta(s, q); if (x) log(s, `${q.nombre} descarta ${nombreCarta(x)}.`, q.id); } break;
     case 'arbol': for (const q of s.players) { const r = d(s, 6); const g = r <= 2 ? 1 : r <= 4 ? 2 : 3; q.oro += g; log(s, `${q.nombre} saca ${r} y gana ${g} oro.`, q.id); } break;
     case 'fiesta': for (const k of rivales(s, p.id)) { const x = quitarPeorCarta(s, p, false); if (x) { s.players[k].mano.push(x); log(s, `${p.nombre} regala ${nombreCarta(x)} a ${nombreDe(s, k)}.`, p.id); } } break;
@@ -661,7 +672,7 @@ function resolverDicho(s: GameState, id: DichoId) {
       for (const q of s.players) { const r = d(s, 6); log(s, `${q.nombre} saca ${r}.`, q.id); if (r > best) { best = r; who = q.id; } }
       const q = s.players[who];
       const poder = d(s, 6) + d(s, 6) + totalGolpe(q);
-      if (poder >= 6) { q.oro += 3; q.guacas += 1; log(s, `${q.nombre} pelea (${poder} contra 6) y gana 3 oro + 1 guaca.`, who); }
+      if (poder >= 6) { q.oro += 3; log(s, `${q.nombre} pelea (${poder} contra 6) y gana 3 oro.`, who); darGuacas(s, q, 1); }
       else log(s, `${q.nombre} pelea (${poder} contra 6) y pierde, sin castigo.`, who);
       break;
     }
@@ -735,7 +746,7 @@ function activaPersonaje(s: GameState, p: Player, id: CharacterId, r: number) {
       else if (p.oro > 0) push(s, { kind: 'dar-oro', player: p.id, title: '¿A quién le das 1 oro?', options: ops(() => true) });
       break;
     case 'jairo':
-      if (lv === 0) { p.guacas++; log(s, `${p.nombre} gana 1 guaca.`, p.id); }
+      if (lv === 0) darGuacas(s, p, 1);
       else if (lv === 1) { p.oro++; log(s, `${p.nombre} gana 1 oro.`, p.id); }
       else { p.oro = Math.max(0, p.oro - 1); log(s, `${p.nombre} pierde 1 oro.`, p.id); }
       break;
@@ -787,7 +798,7 @@ function activaApoyo(s: GameState, p: Player, r: number) {
       else { const x = quitarPeorCarta(s, p); if (x) log(s, `${p.nombre} descarta ${nombreCarta(x)}.`, p.id); }
       break;
     case 'cura-audemio':
-      if (lv === 0) p.guacas++; else if (lv === 1) p.oro++; else p.oro = Math.max(0, p.oro - 1);
+      if (lv === 0) darGuacas(s, p, 1); else if (lv === 1) p.oro++; else p.oro = Math.max(0, p.oro - 1);
       break;
     case 'polonio':
       if (lv === 0) p.oro += 2; else if (lv === 1) p.oro++; else p.oro = Math.max(0, p.oro - 1);
@@ -956,7 +967,7 @@ function aplicarJugada(prev: GameState, a: Action): GameState {
       break;
     }
     case 'soltarApoyo': if (!p.apoyo) return prev; log(s, `${p.nombre} deja ir a ${apoyo(p.apoyo).nombre}.`, p.id); p.apoyo = null; p.copiaApoyo = null; break;
-    case 'guacaErrantes': if (s.evento !== 'errantes' || s.phase !== 'plaza' || s.turn.guacaErrantes || p.oro < 5) return prev; p.oro -= 5; p.guacas++; s.turn.guacaErrantes = true; log(s, `${p.nombre} compra 1 guaca a los arrieros errantes.`, p.id); break;
+    case 'guacaErrantes': if (s.evento !== 'errantes' || s.phase !== 'plaza' || s.turn.guacaErrantes || p.oro < 5) return prev; p.oro -= 5; s.turn.guacaErrantes = true; log(s, `${p.nombre} le compra una guaca a los arrieros errantes.`, p.id); darGuacas(s, p, 1); break;
     case 'intercambio': {
       if (s.phase !== 'plaza' || s.evento === 'cierre' || s.turn.intercambios >= maxIntercambios(s, p)) return prev;
       const q = s.players[a.partner]; if (!q || q.id === p.id) return prev;
@@ -1016,8 +1027,9 @@ function aplicarJugada(prev: GameState, a: Action): GameState {
         if (p.tools[t] > 0) { p.tools[t]--; s.herramientasDescarte.push(t); }
         else if (r.comodin) { p.mano = p.mano.filter(x => x.uid !== r.comodin!.uid); s.morralDescarte.push(r.comodin); log(s, `${p.nombre} usa «Más feo que pegarle a la mamá» como ${HERRAMIENTAS[t].nombre}.`, p.id); }
       }
-      p.guacas -= r.guacas; p.edificios[b] = 'ok'; s.turn.construcciones++;
+      void r; p.edificios[b] = 'ok'; s.turn.construcciones++;
       log(s, `¡${p.nombre} construye ${EDIFICIOS[b].nombre}!`, p.id);
+      if (pasivaApoyo(p, 'cura-audemio') && !habilidadesBloqueadas(s)) { log(s, `El Cura Audemio bendice la obra.`, p.id); darGuacas(s, p, 1); }
       break;
     }
     case 'reparar': {
