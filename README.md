@@ -1,6 +1,6 @@
 # Arrieros y Cuchillos: Una Aventura Quindiana
 
-Juego de mesa digital para 2 a 4 jugadores en **modo mesa**: una TV o computador muestra el tablero como un mapa, y cada jugador usa su celular como su mano de cartas. Los puestos vacíos se pueden llenar con la IA.
+Juego de mesa digital para 2 a 4 jugadores. Cada jugador entra desde su propio PC o celular (en horizontal) y ve la mesa completa en su pantalla. Los puestos vacíos se pueden llenar con la IA.
 Hecho con React 19, TypeScript, Vite, Express y Socket.io.
 
 ## Instalar y jugar
@@ -14,8 +14,8 @@ npm run jugar
 
 Esto compila el juego y arranca el servidor. En la terminal aparecen dos direcciones:
 
-- **En este equipo:** http://localhost:3000. Ábrela en el computador conectado a la TV.
-- **En la red local:** http://192.168.x.x:3000. La pantalla de la mesa la muestra como código QR para los celulares conectados al mismo wifi.
+- **En este equipo:** http://localhost:3000
+- **En la red local:** http://192.168.x.x:3000, para los otros dispositivos conectados al mismo wifi. El lobby la muestra como código QR.
 
 ### Mientras programas
 
@@ -23,7 +23,7 @@ Esto compila el juego y arranca el servidor. En la terminal aparecen dos direcci
 npm run dev
 ```
 
-Arranca Vite (con recarga en caliente) y el servidor a la vez. Abre http://localhost:5173 para la mesa. Los celulares usan la dirección del QR.
+Arranca Vite (con recarga en caliente) y el servidor a la vez. Abre http://localhost:5173; los demás dispositivos usan la dirección del QR.
 
 ## Comandos
 
@@ -37,25 +37,32 @@ Arranca Vite (con recarga en caliente) y el servidor a la vez. Abre http://local
 
 ## Cómo arrancar una partida
 
-1. En el computador conectado a la TV, abre el juego y toca **Abrir la mesa**. Aparecen un código QR y un código de 4 letras.
-2. Cada jugador escanea el QR (o entra a la dirección y escribe el código), pone su nombre y elige su personaje.
-3. El primero en entrar es el anfitrión: desde su celular puede dejar puestos a la IA y toca **Comenzar partida**. Los puestos libres se quitan solos.
+1. Un jugador toca **Crear partida**, escribe su nombre y queda como anfitrión. El lobby muestra el código de 4 letras, un QR y el enlace para compartir.
+2. Los demás tocan **Unirme a una partida** (o abren el enlace / escanean el QR), escriben su nombre y eligen personaje.
+3. El anfitrión puede dejar puestos a la IA y toca **Comenzar partida**. Los puestos libres se quitan solos.
 
-**La pantalla grande** muestra:
+En celulares el juego se ve en horizontal: si el celular está vertical, aparece un aviso para girarlo, y al entrar se intenta poner en pantalla completa (Chrome en Android lo permite; en iPhone hay que girarlo a mano).
+
+**Mientras otro juega, todos ven la mesa:**
 - el mapa con la ficha de cada jugador;
 - los mazos, las herramientas y los apoyos;
 - el combate en vivo;
-- los dichos y eventos;
+- los dichos y eventos (se quedan entre 9 y 16 segundos, con una barra de tiempo);
 - el pueblo de cada jugador.
 
-Las cartas jugadas cruzan volando desde el pueblo del jugador hasta el mapa o el panel de combate. Cada mito aparece en grande con un destello del color de su nivel. Los dados ruedan por la mesa y el resultado cae como un sello: «¡Victoria!» con rayos, cortes y monedas, o «¡Derrota!» con grietas y una sacudida de la pantalla.
+Las cartas jugadas cruzan volando hasta el mapa o el combate, los mitos aparecen en grande, los dados ruedan y el resultado cae como un sello. Con el botón **Mis cartas** puedes mirar tu mano sin esperar tu turno.
 
-**El celular** es tu mano privada: ves tus cartas en abanico, las tocas para verlas en grande y las juegas. Al jugarlas, la carta sale disparada hacia arriba, «a la mesa». En combate, el mito se sacude con cada golpe y el resultado aparece como un sello. Cuando puedes reaccionar al turno de otro (sabotear, «Mató el tigre…»), el celular te avisa con una cuenta regresiva de 15 segundos.
+**Cuando te toca jugar o intervenir, la pantalla cambia sola a tus controles:**
+- Tu turno: pestañas **Mano**, **Mi turno** (acciones de la zona y botón para avanzar) y **Pueblo**, con un botón para **Ver la mesa**.
+- Reacciones (sabotear, «Mató el tigre…»): una cuenta regresiva de 15 segundos.
+- Combate: en dos columnas, con el mito a un lado y tus opciones al otro; si tienes comida o licor, aparece **Seguir sin potenciador** para pelear sin usarlos.
+
+Al terminar, la pantalla vuelve sola a la mesa.
 
 Otros detalles:
-- **Reconexión:** si la TV o un celular se recargan, vuelven solos a la partida.
-- **Desconexiones:** si un jugador se desconecta, el anfitrión puede reemplazarlo por la IA.
-- **Autoridad del servidor:** valida cada jugada y a cada dispositivo le envía solo lo que puede ver.
+- **Reconexión:** si un dispositivo se recarga, vuelve solo a la partida.
+- **Desconexiones:** el anfitrión puede reemplazar por la IA a quien se desconecte.
+- **Autoridad del servidor:** valida cada jugada y a cada dispositivo le envía solo lo que puede ver. Las jugadas hechas sobre una pantalla vieja (dobles toques) se descartan.
 - **Salas:** viven en la memoria del servidor; si el servidor se reinicia, se pierden.
 
 ## Publicarlo en internet
@@ -71,7 +78,7 @@ Un solo servicio sirve el juego y el servidor de partidas. El archivo `render.ya
    - Start Command: `npm start`
    - Health Check Path: `/api/salud`
    - Variable de entorno: `NODE_VERSION=20`
-4. Abre `https://tu-servicio.onrender.com` en la TV. El QR ya apunta a esa dirección.
+4. Abre `https://tu-servicio.onrender.com`, crea la partida y comparte el código o el QR.
 
 En el plan gratuito, Render apaga el servicio tras unos 15 minutos sin uso. La primera visita puede tardar hasta un minuto en despertarlo; la pantalla de carga lo avisa.
 
@@ -82,7 +89,7 @@ Vercel no mantiene conexiones WebSocket, así que el servidor de partidas sigue 
 1. Despliega primero la opción A para tener el servidor en Render. Anota su URL.
 2. En Vercel: **Add New → Project** e importa el mismo repositorio. `vercel.json` ya define el build (`npm run build:web`) y la carpeta `dist`.
 3. En **Settings → Environment Variables** agrega `VITE_SERVER_URL=https://tu-servicio.onrender.com` (sin barra final) y vuelve a desplegar. Mira `.env.example`.
-4. Abre la URL de Vercel en la TV. Los celulares se conectan al servidor de Render. El CORS ya está abierto.
+4. Abre la URL de Vercel y crea la partida; todos los dispositivos se conectan al servidor de Render. El CORS ya está abierto.
 
 ## Sonido
 
@@ -91,7 +98,9 @@ Todos los sonidos se sintetizan en el navegador con Web Audio, sin archivos: dad
 ## Reglas
 
 - De 2 a 4 jugadores; cada puesto puede ser una persona o la IA.
-- Todos empiezan sin oro, materiales ni cartas.
+- Al empezar, cada jugador tira un D6 desde su celular: el que saque más arranca y los demás siguen de mayor a menor (los empates vuelven a tirar). El primer jugador rota cada ronda siguiendo ese orden.
+- Todos empiezan con 8 cartas del Morral, sin oro ni materiales. El límite de mano es 10 (12 con el Carriel).
+- En la pestaña **Mano** ves todas tus cartas; al tocar una se ve completa en grande, con su acción. Si otro jugador te quita cartas, te sale un aviso con cuáles y por qué.
 - El botón **Cómo jugar** tiene un resumen; el reglamento completo es el documento consolidado.
 
 ## Estructura
@@ -102,8 +111,9 @@ src/
   game/engine.ts    Motor de reglas puro (sin React): turnos, combate, castigos, habilidades, victoria
   game/ai.ts        IA heurística
   components/       Pantallas: inicio, configuración, tablero, combate, cartas y ventanas
-  components/Mesa.tsx      Modo mesa: pantalla grande (sala de espera con QR y tablero)
-  components/Celular.tsx   Modo mesa: el celular como mano y control
+  components/Mesa.tsx      Tablero de la mesa (lo que todos ven mientras otro juega)
+  components/Juego.tsx     Cambia entre la mesa y los controles según a quién le toca
+  components/Celular.tsx   Controles del jugador: mano, turno, combate y decisiones
   audio/            Sonidos sintetizados y música
   net/red.ts        Cliente de red (Socket.io)
   App.tsx           Ciclo de la IA, guardado y modo en red
@@ -128,5 +138,5 @@ El motor sigue el reglamento consolidado. Estas son las simplificaciones para la
 
 ## Balance (simulación de 600 partidas entre IAs)
 
-- Sin recursos iniciales: mediana de 11 rondas por partida (el valor inicial se cambia en `INICIO`, en `src/game/engine.ts`).
+- Inicio con 8 cartas, sin oro ni materiales, y límite de mano de 10 (12 con Carriel): mediana de 10 rondas por partida. Los valores se cambian en `INICIO` y `limiteMano`, en `src/game/engine.ts`.
 - Don José María (44 %) y Doña Clementina (42 %) ganan más seguido; Don Jairo (24 %), Doña Claudia (28 %) y Don Wilson (27 %) menos. Conviene confirmarlo en mesa antes de ajustar habilidades.

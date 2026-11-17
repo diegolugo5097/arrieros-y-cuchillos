@@ -28,6 +28,7 @@ export function useRed(activo: boolean, rol: 'jugador' | 'mesa' = 'jugador') {
   const [chat, setChat] = useState<Mensaje[]>([]);
   const [anuncios, setAnuncios] = useState<Anuncio[]>([]);
   const [aviso, setAviso] = useState<string | null>(null);
+  const paso = useRef(0);
 
   useEffect(() => {
     if (!activo) return;
@@ -46,7 +47,7 @@ export function useRed(activo: boolean, rol: 'jugador' | 'mesa' = 'jugador') {
     });
     s.on('disconnect', () => setConectado(false));
     s.on('sala', (x: SalaInfo) => setSala(x));
-    s.on('estado', (x: GameState) => setEstado(restaurar(x)));
+    s.on('estado', (x: GameState) => { paso.current = x.paso ?? 0; setEstado(restaurar(x)); });
     s.on('chat', (x: Mensaje[]) => setChat(x));
     s.on('anuncio', (x: Anuncio) => setAnuncios(a => [...a, x]));
     s.on('aviso', (x: string) => setAviso(x));
@@ -58,10 +59,13 @@ export function useRed(activo: boolean, rol: 'jugador' | 'mesa' = 'jugador') {
   const unirse = useCallback((codigo: string, nombre: string) => new Promise<string | null>(res => {
     ref.current?.emit('unirse', { codigo, nombre }, (r: any) => { if (r?.ok) { guardarSesion({ codigo: r.codigo, token: r.token }); res(null); } else res(r?.error ?? 'Error'); });
   }), []);
+  const crear = useCallback((nombre: string) => new Promise<string | null>(res => {
+    ref.current?.emit('crearSala', { nombre }, (r: any) => { if (r?.ok) { guardarSesion({ codigo: r.codigo, token: r.token }); res(null); } else res(r?.error ?? 'Error'); });
+  }), []);
   const salir = useCallback(() => { ref.current?.emit('salir'); if (rol === 'mesa') guardarMesa(null); else guardarSesion(null); setSala(null); setEstado(null); setChat([]); }, [rol]);
   const nuevaMesa = useCallback(() => { ref.current?.emit('salir'); guardarMesa(null); setSala(null); setEstado(null); setChat([]); ref.current?.emit('crearMesa', {}, (r: any) => r?.ok && guardarMesa(r.codigo)); }, []);
-  const accion = useCallback((a: Action) => { if (a.t !== 'cerrarAnuncio') ref.current?.emit('accion', a); }, []);
+  const accion = useCallback((a: Action) => { if (a.t !== 'cerrarAnuncio') ref.current?.emit('accion', { ...a, paso: paso.current }); }, []);
   const cerrarAnuncio = useCallback(() => setAnuncios(a => a.slice(1)), []);
 
-  return { conectado, sala, estado, chat, anuncio: anuncios[0] ?? null, cerrarAnuncio, aviso, setAviso, unirse, salir, accion, emit, nuevaMesa };
+  return { conectado, sala, estado, chat, anuncio: anuncios[0] ?? null, cerrarAnuncio, aviso, setAviso, unirse, crear, salir, accion, emit, nuevaMesa };
 }

@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react';
+import QRCode from 'qrcode';
+import { useEnlace } from './Mesa';
 import { IMG, PERSONAJES } from '../game/data';
 import { SalaInfo, Mensaje } from '../net/red';
 import { PersonajeCarta } from './Cartas';
@@ -7,10 +9,11 @@ import { Chat } from './Controles';
 interface Props {
   conectado: boolean; sala: SalaInfo | null; chat: Mensaje[]; aviso: string | null; limpiarAviso: () => void;
   unirse: (codigo: string, nombre: string) => Promise<string | null>;
+  crear: (nombre: string) => Promise<string | null>; modo: 'crear' | 'unirse';
   emit: (ev: string, data?: any) => void; salir: () => void; volver: () => void;
 }
 
-export function SalaRed({ conectado, sala, chat, aviso, limpiarAviso, unirse, emit, salir, volver }: Props) {
+export function SalaRed({ conectado, sala, chat, aviso, limpiarAviso, unirse, crear, modo, emit, salir, volver }: Props) {
   const [nombre, setNombre] = useState(() => localStorage.getItem('arrieros-y-cuchillos:nombre') ?? '');
   const [codigo, setCodigo] = useState(() => new URLSearchParams(location.search).get('sala')?.toUpperCase() ?? '');
   const [error, setError] = useState<string | null>(null);
@@ -19,18 +22,27 @@ export function SalaRed({ conectado, sala, chat, aviso, limpiarAviso, unirse, em
   useEffect(() => { if (aviso) { setError(aviso); limpiarAviso(); } }, [aviso, limpiarAviso]);
 
   if (!sala) {
+    const creando = modo === 'crear' && !new URLSearchParams(location.search).get('sala');
     return (
       <div className="pantalla-config" style={{ backgroundImage: `url(${IMG('escenarios/zona-plaza')})` }}>
         <div className="config-caja caja-red">
-          <h1>Unirme a la mesa</h1>
-          <p className="nota">Tu celular será tu mano de cartas; el tablero se ve en la pantalla grande. {conectado ? <b className="ok-txt">● Conectado al servidor</b> : <b className="err-txt">● Conectando al servidor…</b>}</p>
+          <h1>{creando ? 'Crear partida' : 'Unirme a una partida'}</h1>
+          <p className="nota">Cada jugador ve la mesa en su propio PC o celular (en horizontal). {conectado ? <b className="ok-txt">● Conectado al servidor</b> : <b className="err-txt">● Conectando al servidor…</b>}</p>
           <label className="campo">Tu nombre<input value={nombre} maxLength={18} onChange={e => setNombre(e.target.value)} placeholder="Ej: Diego" /></label>
-          <div className="red-op solo">
-            <h3>Código de la mesa</h3>
-            <p className="nota">Aparece en la pantalla grande, debajo del QR.</p>
-            <input className="input-codigo" value={codigo} maxLength={4} onChange={e => setCodigo(e.target.value.toUpperCase())} placeholder="ABCD" />
-            <button className="btn grande" disabled={!conectado || !nombre.trim() || codigo.length !== 4} onClick={async () => setError(await unirse(codigo, nombre.trim()))}>Sentarme a la mesa</button>
-          </div>
+          {creando ? (
+            <div className="red-op solo">
+              <h3>Serás el anfitrión</h3>
+              <p className="nota">Después compartes el código, el QR o el enlace con los demás jugadores.</p>
+              <button className="btn grande" disabled={!conectado || !nombre.trim()} onClick={async () => setError(await crear(nombre.trim()))}>Crear la partida</button>
+            </div>
+          ) : (
+            <div className="red-op solo">
+              <h3>Código de la partida</h3>
+              <p className="nota">Te lo comparte el anfitrión.</p>
+              <input className="input-codigo" value={codigo} maxLength={4} onChange={e => setCodigo(e.target.value.toUpperCase())} placeholder="ABCD" />
+              <button className="btn grande" disabled={!conectado || !nombre.trim() || codigo.length !== 4} onClick={async () => setError(await unirse(codigo, nombre.trim()))}>Entrar a la partida</button>
+            </div>
+          )}
           {error && <p className="err-txt">{error}</p>}
           <div className="config-acciones"><button className="btn sec" onClick={volver}>Volver</button></div>
         </div>
@@ -42,6 +54,7 @@ export function SalaRed({ conectado, sala, chat, aviso, limpiarAviso, unirse, em
   const enlace = `${location.origin}${location.pathname}?sala=${sala.codigo}`;
   const tomadoPor = (id: string) => sala.asientos.find(a => a.personaje === id)?.nombre;
   const esMesa = sala.modo === 'mesa';
+
   const faltan = esMesa ? Math.max(0, 2 - sala.asientos.filter(a => a.ia || a.ocupado).length) : sala.asientos.filter(a => !a.ia && !a.ocupado).length;
   const sinPj = sala.asientos.filter(a => !a.ia && a.ocupado && !a.personaje).length;
   const compartir = async () => {
@@ -52,12 +65,12 @@ export function SalaRed({ conectado, sala, chat, aviso, limpiarAviso, unirse, em
       <div className="config-caja caja-red">
         <div className="sala-cabeza">
           <div>
-            <h1>Mesa <span className="codigo-sala">{sala.codigo}</span></h1>
+            <h1>Partida <span className="codigo-sala">{sala.codigo}</span></h1>
             <p className="nota">Comparte el código o el enlace con los demás jugadores. {conectado ? <b className="ok-txt">● En línea</b> : <b className="err-txt">● Reconectando…</b>}</p>
           </div>
           <button className="btn sec" onClick={compartir}>{copiado ? '¡Enlace copiado!' : 'Compartir enlace'}</button>
         </div>
-        {esMesa && <p className="nota"><b>Modo mesa:</b> la partida se ve en la pantalla grande y este celular será tu mano. Los puestos libres se quitan al comenzar.</p>}
+        <Invitar codigo={sala.codigo} />
         {sala.soyHost && !esMesa && (
           <div className="config-fila">
             <span>Jugadores:</span>
@@ -104,6 +117,23 @@ export function SalaRed({ conectado, sala, chat, aviso, limpiarAviso, unirse, em
           </div>
         </div>
         {error && <p className="err-txt">{error}</p>}
+      </div>
+    </div>
+  );
+}
+
+/** QR, enlace y código para que los demás entren a la partida. */
+function Invitar({ codigo }: { codigo: string }) {
+  const url = useEnlace(codigo);
+  const [qr, setQr] = useState('');
+  useEffect(() => { if (url) QRCode.toDataURL(url, { margin: 1, width: 300, color: { dark: '#2b1d12', light: '#f4e9d2' } }).then(setQr).catch(() => setQr('')); }, [url]);
+  return (
+    <div className="sala-invitar">
+      {qr && <img src={qr} alt="Código QR para unirse" />}
+      <div>
+        <div className="nota">Para unirse: escanear el QR, abrir el enlace o entrar al juego y escribir el código <b>{codigo}</b>.</div>
+        <div className="sala-enlace">{url}</div>
+        <div className="nota">Los puestos libres se quitan al comenzar. Cada uno verá la mesa en su dispositivo; pon el celular en horizontal.</div>
       </div>
     </div>
   );

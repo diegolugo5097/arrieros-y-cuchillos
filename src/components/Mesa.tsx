@@ -1,11 +1,11 @@
-// Modo mesa: la pantalla grande (TV o computador) muestra toda la partida.
+// Tablero de la mesa: lo que todos ven en su dispositivo mientras otro juega.
 // Los jugadores juegan desde su celular; esta pantalla solo observa.
 import { useEffect, useMemo, useRef, useState } from 'react';
 import QRCode from 'qrcode';
 import {
   IMG, ZONAS, personaje, apoyo, evento, HERRAMIENTAS, MATERIALES, EDIFICIOS, ORDEN_EDIFICIOS, MaterialId, mito, TIER_FONDO, TIER_NOMBRE, RECOMPENSA,
 } from '../game/data';
-import { GameState, ataqueMito, poderJugador, dadosUsados, totalGolpe, cartasEnMano, pendiente, Phase } from '../game/engine';
+import { GameState, ataqueMito, poderJugador, dadosUsados, totalGolpe, cartasEnMano, pendiente, Phase, ordenDe } from '../game/engine';
 import { SalaInfo, Anuncio, SERVIDOR } from '../net/red';
 import { ControlSonido } from './Controles';
 import { Dados, Dado, Carta, propsMito } from './Cartas';
@@ -13,15 +13,20 @@ import { CapaEfectos, useEfectosMesa } from './Efectos';
 import { Victoria } from './Modales';
 
 /** Escenario de 1920×1080 escalado para llenar cualquier pantalla. */
-function Escenario({ children }: { children: React.ReactNode }) {
-  const [k, setK] = useState(1);
+function Escenario({ children, girable }: { children: React.ReactNode; girable?: boolean }) {
+  const [k, setK] = useState({ k: 1, girar: false });
   useEffect(() => {
-    const f = () => setK(Math.min(window.innerWidth / 1920, window.innerHeight / 1080));
+    const f = () => {
+      const w = window.innerWidth, h = window.innerHeight;
+      // En un celular vertical, la mesa se gira 90° para aprovechar la pantalla
+      const girar = !!girable && h > w;
+      setK({ girar, k: girar ? Math.min(h / 1920, w / 1080) : Math.min(w / 1920, h / 1080) });
+    };
     f(); window.addEventListener('resize', f); return () => window.removeEventListener('resize', f);
-  }, []);
+  }, [girable]);
   return (
-    <div className="mesa-fondo">
-      <div className="mesa-escenario" style={{ transform: `translate(-50%, -50%) scale(${k})` }}>{children}</div>
+    <div className={`mesa-fondo ${girable ? 'en-celular' : ''}`}>
+      <div className="mesa-escenario" style={{ transform: `translate(-50%, -50%)${k.girar ? ' rotate(90deg)' : ''} scale(${k.k})` }}>{children}</div>
     </div>
   );
 }
@@ -33,7 +38,14 @@ function useCuentaRegresiva(hasta?: number | null) {
 }
 export { useCuentaRegresiva };
 
-function useEnlace(codigo: string) {
+/** Zona donde quedó la ficha de cada jugador: el de turno está en su zona; los demás, donde terminaron. */
+export function usePosiciones(s: GameState) {
+  const pos = useRef<Record<number, Phase>>({});
+  if (s.phase !== 'fin') pos.current[s.current] = s.phase;
+  return pos.current;
+}
+
+export function useEnlace(codigo: string) {
   const [url, setUrl] = useState('');
   useEffect(() => {
     let vivo = true;
@@ -86,7 +98,7 @@ export function MesaSala({ sala, onSalir }: { sala: SalaInfo; onSalir: () => voi
           </div>
           <div className="mesa-sala-pie">
             <div>La partida empieza cuando el anfitrión toque <b>Comenzar</b> en su celular.</div>
-            <div className="mesa-chip-claro">Sin recursos iniciales</div>
+            <div className="mesa-chip-claro">8 cartas iniciales · orden con D6</div>
           </div>
           <div className="mesa-sala-botones"><ControlSonido /><button className="btn chico sec" onClick={onSalir}>Cerrar mesa</button></div>
         </div>
@@ -104,16 +116,18 @@ const POS_ZONA: Record<string, { left?: string; right?: string; top: string; ali
 };
 const NUM_ZONA: Record<string, number> = { plaza: 1, monte: 2, taller: 3, campo: 4 };
 
-export function MesaTablero({ s, sala, anuncio, cerrarAnuncio, onNueva, onSalir }: { s: GameState; sala: SalaInfo; anuncio: Anuncio | null; cerrarAnuncio: () => void; onNueva: () => void; onSalir: () => void }) {
+export function MesaTablero({ s, sala, anuncio, cerrarAnuncio, onNueva, onSalir, enCelular, posiciones, yo }: { s: GameState; sala: SalaInfo; anuncio: Anuncio | null; cerrarAnuncio: () => void; onNueva: () => void; onSalir: () => void; enCelular?: boolean; posiciones?: Record<number, Phase>; yo?: number }) {
   const p = s.players[s.current];
   const pnd = pendiente(s);
   // Posición de cada ficha en el mapa: el jugador de turno está en su zona; los demás, donde quedaron
-  const pos = useRef<Record<number, Phase>>({});
-  if (s.phase !== 'fin') pos.current[s.current] = s.phase;
-  const zonaDe = (i: number) => pos.current[i] ?? 'plaza';
+  const propias = usePosiciones(s);
+  const pos = posiciones ?? propias;
+  const zonaDe = (i: number) => pos[i] ?? 'plaza';
   const restante = useCuentaRegresiva(sala.limite?.hasta);
   const fx = useEfectosMesa(s);
-  useEffect(() => { if (!anuncio) return; const id = setTimeout(cerrarAnuncio, 5000); return () => clearTimeout(id); }, [anuncio, cerrarAnuncio]);
+  // Los dichos y eventos se quedan en pantalla según lo largo del texto (entre 9 y 16 s) para que alcancen a leerse
+  const durAnuncio = anuncio ? Math.min(16000, Math.max(9000, 5000 + (anuncio.titulo.length + anuncio.texto.length) * 70)) : 0;
+  useEffect(() => { if (!anuncio) return; const id = setTimeout(cerrarAnuncio, durAnuncio); return () => clearTimeout(id); }, [anuncio, cerrarAnuncio, durAnuncio]);
   const ultimo = useMemo(() => [...s.log].reverse().find(l => !l.t.startsWith('—') && !l.t.startsWith('=')), [s.log]);
   const fases = ['plaza', 'monte', 'taller', 'campo'];
   const idx = fases.indexOf(s.phase);
@@ -122,7 +136,7 @@ export function MesaTablero({ s, sala, anuncio, cerrarAnuncio, onNueva, onSalir 
   const verCombate = !!c && s.phase === 'monte';
 
   return (
-    <Escenario>
+    <Escenario girable={enCelular}>
       <div className={`mesa ${fx.temblor ? (fx.temblor % 2 ? 'sacude-a' : 'sacude-b') : ''}`}>
         <header className="mesa-barra">
           <div className="mesa-barra-logo">Arrieros <span>y</span> Cuchillos</div>
@@ -135,9 +149,9 @@ export function MesaTablero({ s, sala, anuncio, cerrarAnuncio, onNueva, onSalir 
               : <><span className="mesa-evento-et">Evento</span><span>Próximo en {proxEvento} ronda{proxEvento === 1 ? '' : 's'}</span></>}
             {s.gato && <span className="chip">Habilidades anuladas</span>}
           </div>
-          <div className="mesa-unete"><span>Únete desde<br />tu celular</span><b>{sala.codigo}</b></div>
-          <ControlSonido />
-          <button className="btn chico sec" onClick={onSalir}>Salir</button>
+          <div className="mesa-unete"><span>{yo !== undefined ? <>Juegas como<br /><b className="mesa-yo" style={{ color: s.players[yo].color }}>{s.players[yo].nombre}</b></> : <>Código de<br />la partida</>}</span><b>{sala.codigo}</b></div>
+          {!enCelular && <ControlSonido />}
+          <button className={`btn chico ${enCelular ? 'mesa-cerrar' : 'sec'}`} onClick={onSalir}>{enCelular ? '✕ Volver' : 'Salir'}</button>
         </header>
 
         <main className="mesa-centro">
@@ -192,9 +206,10 @@ export function MesaTablero({ s, sala, anuncio, cerrarAnuncio, onNueva, onSalir 
             const n = cartasEnMano(q);
             const estado = q.id === s.current ? 'Jugando' : pnd?.player === q.id ? 'Decidiendo' : q.ia ? 'IA' : q.conectado === false ? 'Desconectado' : 'Esperando';
             return (
-              <article key={q.id} className={`mesa-pueblo ${q.id === s.current ? 'actual' : ''}`} style={{ borderColor: q.color }}>
+              <article key={q.id} className={`mesa-pueblo ${q.id === s.current ? 'actual' : ''} ${q.id === yo ? 'yo' : ''}`} style={{ borderColor: q.color }}>
                 <div className="mesa-pueblo-cab">
                   <img src={IMG(personaje(q.personaje).img)} alt="" />
+                  {s.orden && <b className="mesa-orden-num" style={{ background: q.color }} title="Orden de turno">{ordenDe(s).indexOf(q.id) + 1}º</b>}
                   <div className="mesa-pueblo-nom"><div style={{ color: q.color }}>{q.nombre}</div><span>{personaje(q.personaje).nombre} · {personaje(q.personaje).rol}</span></div>
                   <span className="mesa-estado" style={{ background: estado === 'Desconectado' ? '#7a6a5a' : q.color }}>{estado}</span>
                 </div>
@@ -227,6 +242,7 @@ export function MesaTablero({ s, sala, anuncio, cerrarAnuncio, onNueva, onSalir 
           })}
         </section>
 
+        {s.ordenTiradas && !s.orden && <MesaOrden s={s} />}
         <CapaEfectos s={s} efecto={fx.actual} rapido={fx.rapido} />
         {anuncio && (
           <div className="mesa-anuncio" onClick={cerrarAnuncio}>
@@ -234,6 +250,7 @@ export function MesaTablero({ s, sala, anuncio, cerrarAnuncio, onNueva, onSalir 
               {anuncio.img && <div className="mesa-anuncio-img" style={{ backgroundImage: `url(${IMG(anuncio.img)})` }} />}
               <h2>{anuncio.titulo}</h2>
               <p>{anuncio.texto}</p>
+              <div className="mesa-anuncio-tiempo" key={anuncio.titulo + anuncio.texto}><i style={{ animationDuration: `${durAnuncio}ms` }} /></div>
             </div>
           </div>
         )}
@@ -243,7 +260,7 @@ export function MesaTablero({ s, sala, anuncio, cerrarAnuncio, onNueva, onSalir 
   );
 }
 
-function MesaCombate({ s, restante }: { s: GameState; restante: number | null }) {
+export function MesaCombate({ s, restante }: { s: GameState; restante: number | null }) {
   const c = s.combat!;
   const p = s.players[c.fighter];
   const m = mito(c.mitoId);
@@ -291,5 +308,34 @@ function MesaCronica({ s }: { s: GameState }) {
         {lineas.map((l, i) => <div key={l.n ?? i} className={l.t.startsWith('—') || l.t.startsWith('=') ? 'sep' : ''} style={{ borderLeftColor: l.p !== undefined ? s.players[l.p].color : 'transparent' }}>{l.t}</div>)}
       </div>
     </aside>
+  );
+}
+
+/** Tirada inicial para el orden de turnos: cada jugador tira desde su celular. */
+function MesaOrden({ s }: { s: GameState }) {
+  const pnd = pendiente(s);
+  return (
+    <div className="mesa-orden">
+      <div className="mesa-orden-caja">
+        <div className="mesa-orden-tit">¿Quién empieza?</div>
+        <div className="mesa-orden-sub">Cada arriero tira un D6 desde su celular. El que saque más arranca.</div>
+        <div className="mesa-orden-fila">
+          {s.players.map(q => {
+            const t = s.ordenTiradas?.[q.id] ?? [];
+            const tirando = pnd?.kind === 'orden' && pnd.player === q.id;
+            return (
+              <div key={q.id} className={`mesa-orden-jug ${tirando ? 'tirando' : ''}`} style={{ borderColor: q.color }}>
+                <img src={IMG(personaje(q.personaje).img)} alt="" />
+                <b style={{ color: q.color }}>{q.nombre}</b>
+                <div className="mesa-orden-dados">
+                  {t.length ? t.map((v, k) => <Dado key={k} v={v} grande={k === t.length - 1} tachado={k < t.length - 1} />) : <span className="mesa-orden-q">?</span>}
+                </div>
+                <span>{tirando ? (q.ia ? 'Tirando…' : 'Tira en su celular') : t.length ? 'Listo' : 'Esperando'}</span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
   );
 }

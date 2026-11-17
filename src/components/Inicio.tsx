@@ -1,7 +1,7 @@
 import { IMG } from '../game/data';
 import { ControlSonido } from './Controles';
 
-export function Inicio({ onMesa, onUnirse, onReglas, hayPartida }: { onMesa: () => void; onUnirse: () => void; onReglas: () => void; hayPartida: boolean }) {
+export function Inicio({ onCrear, onUnirse, onVolver, onReglas, hayPartida }: { onCrear: () => void; onUnirse: () => void; onVolver: () => void; onReglas: () => void; hayPartida: boolean }) {
   return (
     <div className="pantalla-inicio" style={{ backgroundImage: `url(${IMG('escenarios/mapa')})` }}>
       <div className="inicio-velo" />
@@ -18,8 +18,9 @@ export function Inicio({ onMesa, onUnirse, onReglas, hayPartida }: { onMesa: () 
           <img src={IMG('mitos/madre-monte')} alt="" />
         </div>
         <div className="inicio-botones">
-          <button className="btn grande" onClick={onMesa}>Abrir la mesa <small>en la TV o el computador</small></button>
-          <button className="btn grande" onClick={onUnirse}>{hayPartida ? 'Volver a mi partida' : 'Unirme desde mi celular'}</button>
+          {hayPartida && <button className="btn grande" onClick={onVolver}>Volver a mi partida</button>}
+          <button className={`btn grande ${hayPartida ? 'sec' : ''}`} onClick={onCrear}>Crear partida <small>y compartir el código</small></button>
+          <button className={`btn grande ${hayPartida ? 'sec' : ''}`} onClick={onUnirse}>Unirme a una partida <small>con el código o el QR</small></button>
           <button className="btn sec" onClick={onReglas}>Cómo jugar</button>
         </div>
       </div>

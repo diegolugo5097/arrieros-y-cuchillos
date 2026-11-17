@@ -1,5 +1,5 @@
 // Modo mesa: el celular de cada jugador es su mano privada y su control.
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   IMG, ZONAS, personaje, apoyo, HERRAMIENTAS, MATERIALES, EDIFICIOS, ORDEN_EDIFICIOS, MaterialId, ToolId, Slot, SLOT_NOMBRE, exag, mito,
   TIER_FONDO, RECOMPENSA, FOOD_NOMBRE,
@@ -17,39 +17,176 @@ import { useCuentaRegresiva } from './Mesa';
 
 const SIGUIENTE: Record<string, string> = { plaza: 'Ir al Monte →', monte: 'Ir al Taller →', taller: 'Ir al Campo →', campo: 'Terminar turno ✓' };
 
-interface Props { s: GameState; yo: number; sala: SalaInfo; dispatch: (a: Action) => void; chat: Mensaje[]; enviarChat: (t: string) => void; onSalir: () => void; convertirIA: (i: number) => void }
+interface Props { s: GameState; yo: number; sala: SalaInfo; dispatch: (a: Action) => void; chat: Mensaje[]; enviarChat: (t: string) => void; onSalir: () => void; convertirIA: (i: number) => void; espectador?: boolean; onVerMesa: () => void }
 
-export function ControlCelular({ s, yo, sala, dispatch, chat, enviarChat, onSalir, convertirIA }: Props) {
+const horizontal = () => typeof window !== 'undefined' && window.innerWidth > window.innerHeight;
+const anchoPantalla = () => Math.min(typeof window !== 'undefined' ? window.innerWidth : 390, 560);
+const altoPantalla = () => (typeof window !== 'undefined' ? window.innerHeight : 800);
+
+export function ControlCelular({ s, yo, sala, dispatch: enviar, chat, enviarChat, onSalir, convertirIA, espectador, onVerMesa }: Props) {
   const me = s.players[yo];
   const pnd = pendiente(s);
   const miTurno = s.current === yo && !pnd && s.winner === null;
-  const [pestana, setPestana] = useState<'mano' | 'pueblo'>('mano');
+  const [pestana, setPestana] = useState<'mano' | 'turno' | 'pueblo'>(() => (s.current === yo && !espectador ? 'turno' : 'mano'));
+  const [verCarta, setVerCarta] = useState<number | null>(null);
   const [combateCerrado, setCombateCerrado] = useState('');
+  const propia = useRef(0);
+  // Candado contra toques dobles: una acción por estado y una pausa corta tras cambiar de zona
+  const paso = s.paso ?? 0;
+  const llegada = useRef({ paso, t: Date.now() });
+  const enviado = useRef<{ paso: number; t: number } | null>(null);
+  if (llegada.current.paso !== paso) llegada.current = { paso, t: Date.now() };
+  const dispatch = (a: Action) => {
+    const ahora = Date.now();
+    if (a.t === 'next' && ahora - llegada.current.t < 600) return;
+    if (enviado.current && enviado.current.paso === paso && ahora - enviado.current.t < 1500) return;
+    enviado.current = { paso, t: ahora }; propia.current = ahora; enviar(a);
+  };
+  const aviso = useAvisosMano(s, me, propia);
+  // Al empezar mi turno, se abre la pestaña del turno
+  const claveTurno = s.current === yo && s.orden ? `${s.round}:${s.current}` : '';
+  useEffect(() => { if (claveTurno) setPestana('turno'); }, [claveTurno]);
   const c = s.combat;
   const claveCombate = c ? `${s.round}:${s.current}:${c.mitoId}:${c.source}` : '';
   const enCombate = !!c && c.fighter === yo && s.phase === 'monte' && (c.step !== 'hecho' || combateCerrado !== claveCombate);
+  const carta = verCarta !== null ? me.mano.find(x => x.uid === verCarta) : undefined;
 
-  if (s.winner !== null) return <Victoria s={s} onNueva={onSalir} />;
-  if (pnd && pnd.player === yo) return <CelDecision s={s} me={me} sala={sala} dispatch={dispatch} />;
-  if (enCombate) return <CelCombate s={s} me={me} dispatch={dispatch} onCerrar={() => setCombateCerrado(claveCombate)} />;
-
-  return (
+  let cuerpo: React.ReactNode;
+  if (s.winner !== null) cuerpo = <Victoria s={s} onNueva={onSalir} />;
+  else if (pnd && pnd.player === yo) cuerpo = pnd.kind === 'orden' ? <CelOrden s={s} me={me} dispatch={dispatch} /> : <CelDecision s={s} me={me} sala={sala} dispatch={dispatch} onVer={setVerCarta} onVerMesa={onVerMesa} />;
+  else if (enCombate) cuerpo = <CelCombate s={s} me={me} dispatch={dispatch} onCerrar={() => setCombateCerrado(claveCombate)} />;
+  else cuerpo = (
     <div className="cel">
       <CelCabecera s={s} me={me} chip={miTurno ? 'Tu turno' : pnd ? `${s.players[pnd.player].nombre} decide` : `Turno de ${s.players[s.current].nombre}`} />
-      {pestana === 'mano' ? (
-        <>
-          {miTurno ? <CelZona s={s} me={me} dispatch={dispatch} /> : <CelEspera s={s} me={me} sala={sala} convertirIA={convertirIA} />}
-          <CelMano s={s} me={me} dispatch={dispatch} miTurno={miTurno} />
-        </>
-      ) : <CelPueblo s={s} me={me} dispatch={dispatch} miTurno={miTurno} chat={chat} enviarChat={enviarChat} onSalir={onSalir} />}
+      <div className="cel-contenido">
+      {pestana === 'mano' && <>
+        {!miTurno && <CelEspera s={s} me={me} sala={sala} convertirIA={convertirIA} compacta />}
+        <CelMano s={s} me={me} onVer={setVerCarta} />
+      </>}
+      {pestana === 'turno' && (miTurno
+        ? <CelZona s={s} me={me} dispatch={dispatch} onVer={setVerCarta} />
+        : <section className="cel-turno-espera"><CelEspera s={s} me={me} sala={sala} convertirIA={convertirIA} /><CelTira s={s} me={me} onVer={setVerCarta} /></section>)}
+      {pestana === 'pueblo' && <CelPueblo s={s} me={me} dispatch={dispatch} miTurno={miTurno} chat={chat} enviarChat={enviarChat} onSalir={onSalir} />}
+      </div>
       <nav className="cel-nav" aria-label="Secciones">
-        <button className={pestana === 'mano' ? 'on' : ''} onClick={() => setPestana('mano')}>Mano</button>
-        <button className={pestana === 'pueblo' ? 'on' : ''} onClick={() => setPestana('pueblo')}>Mi pueblo</button>
-        {miTurno && s.phase !== 'fin'
-          ? <button className="sig" disabled={!puedeAvanzar(s)} onClick={() => { setPestana('mano'); dispatch({ t: 'next' }); }}>{SIGUIENTE[s.phase]}</button>
-          : <button className={pestana === 'pueblo' ? '' : ''} onClick={() => setPestana('pueblo')}>Chat{chat.length ? ` (${chat.length})` : ''}</button>}
+        <button className={pestana === 'mano' ? 'on' : ''} onClick={() => setPestana('mano')}>Mano · {me.mano.length}</button>
+        <button className={`${pestana === 'turno' ? 'on' : ''} ${miTurno && pestana !== 'turno' ? 'avisa' : ''}`} onClick={() => setPestana('turno')}>{miTurno ? 'Mi turno' : 'Turno'}</button>
+        <button className={`ver-mesa ${espectador ? 'dorado' : ''}`} onClick={onVerMesa}>{espectador ? '← Volver a la mesa' : 'Ver la mesa'}</button>
+        <button className={pestana === 'pueblo' ? 'on' : ''} onClick={() => setPestana('pueblo')}>Pueblo</button>
       </nav>
     </div>
+  );
+  return (
+    <>
+      {cuerpo}
+      {carta && <CartaGrande s={s} me={me} card={carta} miTurno={miTurno} dispatch={dispatch} onCerrar={() => setVerCarta(null)} />}
+      {aviso && <div className={`cel-aviso ${aviso.tipo}`} key={aviso.id}>{aviso.texto}</div>}
+    </>
+  );
+}
+
+/** Avisa en el celular cuando entran cartas a tu mano o cuando otro te las quita. */
+function useAvisosMano(s: GameState, me: Player, propia: React.MutableRefObject<number>) {
+  const antes = useRef<Map<number, MorralCard> | null>(null);
+  const logVisto = useRef(s.log.length ? s.log[s.log.length - 1].n ?? s.log.length : 0);
+  const [aviso, setAviso] = useState<{ id: number; texto: string; tipo: 'gana' | 'pierde' } | null>(null);
+  useEffect(() => {
+    const ahora = new Map(me.mano.map(c => [c.uid, c] as const));
+    const prev = antes.current; antes.current = ahora;
+    const ultimo = s.log.length ? s.log[s.log.length - 1].n ?? s.log.length : 0;
+    const nuevos = s.log.filter((e, k) => (e.n ?? k + 1) > logVisto.current).map(e => e.t);
+    logVisto.current = ultimo;
+    if (!prev) return;
+    const entran = me.mano.filter(c => !prev.has(c.uid));
+    const salen = [...prev.values()].filter(c => !ahora.has(c.uid));
+    const mia = Date.now() - propia.current < 2500;
+    let texto = '', tipo: 'gana' | 'pierde' = 'gana';
+    if (salen.length && !mia) {
+      const razon = [...nuevos].reverse().find(t => (t.includes(me.nombre) || /^Todos/.test(t)) && /roba|descarta|pasan|pierde|quita|da /.test(t));
+      texto = `Se fue de tu mano: ${salen.map(nombreCarta).join(', ')}${entran.length ? ` · Recibiste: ${entran.map(nombreCarta).join(', ')}` : ''}${razon ? ` — ${razon}` : ''}`; tipo = 'pierde';
+    } else if (entran.length) texto = `${entran.length > 1 ? `+${entran.length} cartas` : 'Nueva carta'}: ${entran.map(nombreCarta).join(', ')}`;
+    if (!texto) return;
+    setAviso({ id: Date.now(), texto, tipo });
+    const t = setTimeout(() => setAviso(null), 4000);
+    return () => clearTimeout(t);
+  }, [me.mano, s.log, me.nombre, propia]);
+  return aviso;
+}
+
+/** Tirada inicial del D6 para decidir el orden de turnos. */
+function CelOrden({ s, me, dispatch }: { s: GameState; me: Player; dispatch: (a: Action) => void }) {
+  const [rodando, setRodando] = useState(false);
+  const mias = s.ordenTiradas?.[me.id] ?? [];
+  const tirar = () => {
+    if (rodando) return;
+    setRodando(true);
+    try { navigator.vibrate?.([30, 40, 30]); } catch { /* */ }
+    setTimeout(() => { dispatch({ t: 'choose', id: 'tirar' }); setRodando(false); }, 700);
+  };
+  return (
+    <div className="cel cel-orden">
+      <header className="cel-cab compacta" style={{ background: me.color }}>
+        <div className="cel-cab-fila"><img src={IMG(personaje(me.personaje).img)} alt="" /><div className="cel-cab-nom"><div>{me.nombre}</div><span>{personaje(me.personaje).nombre}</span></div></div>
+      </header>
+      <section className="cel-orden-cuerpo">
+        <div className="cel-orden-tit">{mias.length ? '¡Empate! Vuelve a tirar' : '¿Quién empieza?'}</div>
+        <div className="cel-nota">Tira el D6. El que saque más arranca y los demás siguen de mayor a menor.</div>
+        <button className={`cel-orden-dado ${rodando ? 'rodando' : ''}`} onClick={tirar} aria-label="Tirar el dado">
+          <Dado v={rodando ? 1 + Math.floor((Date.now() / 90) % 6) : mias[mias.length - 1] ?? 6} grande />
+        </button>
+        <button className="cel-boton" disabled={rodando} onClick={tirar}>{rodando ? 'Rodando…' : 'Tirar el D6'}</button>
+        <OrdenLista s={s} />
+      </section>
+    </div>
+  );
+}
+function OrdenLista({ s }: { s: GameState }) {
+  return (
+    <div className="cel-orden-lista">
+      {s.players.map(q => {
+        const t = s.ordenTiradas?.[q.id] ?? [];
+        return <div key={q.id}><span style={{ color: q.color }}>{q.nombre}</span><b>{t.length ? t.join(' · ') : '—'}</b></div>;
+      })}
+    </div>
+  );
+}
+
+/** Carta en grande, a pantalla completa, con su acción. */
+function CartaGrande({ s, me, card, miTurno, dispatch, onCerrar }: { s: GameState; me: Player; card: MorralCard; miTurno: boolean; dispatch: (a: Action) => void; onCerrar: () => void }) {
+  const [lanzando, setLanzando] = useState(false);
+  const acc = accionCarta(s, me, card, miTurno);
+  const w = Math.floor(horizontal() ? Math.min(380, (altoPantalla() - 36) * 5 / 7) : Math.min(anchoPantalla() - 48, 380, (altoPantalla() - 190) * 5 / 7));
+  const lanzar = () => {
+    if (!acc.accion || lanzando) return;
+    const a = acc.accion;
+    setLanzando(true);
+    try { navigator.vibrate?.(40); } catch { /* */ }
+    setTimeout(() => { dispatch(a); onCerrar(); }, 480);
+  };
+  return (
+    <div className="cel-verla" role="dialog" aria-label={nombreCarta(card)} onClick={onCerrar}>
+      <div className={`cel-carta-wrap ${lanzando ? 'lanzada' : ''}`} onClick={e => e.stopPropagation()}>
+        <Carta {...propsMorral(card)} w={w} />
+      </div>
+      {lanzando && <div className="cel-a-la-mesa">¡A la mesa!</div>}
+      <div className="cel-verla-botones" onClick={e => e.stopPropagation()}>
+        <button className={`cel-accion ${acc.tono}`} disabled={!acc.accion || lanzando} onClick={lanzar}>{acc.label}</button>
+        <button className="cel-accion claro sec" onClick={onCerrar}>Cerrar</button>
+      </div>
+    </div>
+  );
+}
+
+/** Tira horizontal de la mano (en la pestaña del turno y en las decisiones). */
+function CelTira({ s: _s, me, onVer }: { s: GameState; me: Player; onVer: (uid: number) => void }) {
+  if (!me.mano.length) return null;
+  return (
+    <section className="cel-tira" aria-label="Tu mano">
+      <div className="cel-et claro">Tu mano · toca una carta para verla</div>
+      <div className="cel-tira-fila">
+        {me.mano.map(cd => <button key={cd.uid} className="cel-mini-btn" aria-label={nombreCarta(cd)} onClick={() => onVer(cd.uid)}><Carta {...propsMorral(cd)} w={96} compacta /></button>)}
+      </div>
+    </section>
   );
 }
 
@@ -78,7 +215,7 @@ function CelCabecera({ s, me, chip }: { s: GameState; me: Player; chip: string }
 }
 
 // ---------------- Zona actual (mi turno) ----------------
-function CelZona({ s, me, dispatch }: { s: GameState; me: Player; dispatch: (a: Action) => void }) {
+function CelZona({ s, me, dispatch, onVer }: { s: GameState; me: Player; dispatch: (a: Action) => void; onVer: (uid: number) => void }) {
   const [hoja, setHoja] = useState<null | 'apoyos' | 'trato'>(null);
   const zona = ZONAS.find(z => z.id === s.phase);
   const pj = personaje(me.personaje);
@@ -118,6 +255,7 @@ function CelZona({ s, me, dispatch }: { s: GameState; me: Player; dispatch: (a: 
   const sig = ORDEN_EDIFICIOS.find(b => !me.edificios[b]);
   const req = s.phase === 'taller' && sig ? requisitos(s, me, sig) : null;
   return (
+    <div className="cel-turno">
     <section className="cel-zona" style={{ backgroundImage: `url(${IMG(zona?.img ?? 'escenarios/mapa')})` }}>
       <div className="cel-zona-velo" />
       <div className="cel-zona-tit">{zona?.nombre}</div>
@@ -146,24 +284,38 @@ function CelZona({ s, me, dispatch }: { s: GameState; me: Player; dispatch: (a: 
       )}
       {hoja === 'trato' && <Intercambio s={s} dispatch={dispatch} onCerrar={() => setHoja(null)} />}
     </section>
+    <CelTira s={s} me={me} onVer={onVer} />
+    <div className="cel-siguiente-wrap">
+      <ZonasProgreso fase={s.phase} />
+      <button className="cel-siguiente" disabled={!puedeAvanzar(s)} onClick={() => dispatch({ t: 'next' })}>{SIGUIENTE[s.phase]}</button>
+    </div>
+    </div>
   );
+}
+function ZonasProgreso({ fase }: { fase: string }) {
+  const k = ZONAS.findIndex(z => z.id === fase);
+  return <div className="cel-progreso">{ZONAS.map((z, i) => <span key={z.id} className={i < k ? 'hecha' : i === k ? 'aqui' : ''}>{z.nombre.split(' ')[0]}</span>)}</div>;
 }
 
 // ---------------- Esperando (turno de otro) ----------------
-function CelEspera({ s, me, sala, convertirIA }: { s: GameState; me: Player; sala: SalaInfo; convertirIA: (i: number) => void }) {
+function CelEspera({ s, me, sala, convertirIA, compacta }: { s: GameState; me: Player; sala: SalaInfo; convertirIA: (i: number) => void; compacta?: boolean }) {
   const p = s.players[s.current];
   const c = s.combat;
   const desconectados = sala.soyHost ? s.players.filter(q => !q.ia && q.conectado === false && q.id !== me.id) : [];
   return (
-    <section className="cel-espera">
+    <section className={`cel-espera ${compacta ? 'compacta' : ''}`}>
+      {s.ordenTiradas && !s.orden ? (
+        <div className="cel-espera-caja"><div style={{ flex: 1 }}><div className="cel-espera-tit">Tirada para el orden</div><div className="cel-nota">Cada jugador tira un D6 en su celular.</div><OrdenLista s={s} /></div></div>
+      ) : (
       <div className="cel-espera-caja">
         <img src={IMG(personaje(p.personaje).img)} alt="" />
         <div>
           <div className="cel-espera-tit" style={{ color: p.color }}>Turno de {p.nombre}</div>
           <div>{c && s.phase === 'monte' && c.step !== 'hecho' ? `Pelea contra ${mito(c.mitoId).nombre}.` : `Está en ${ZONAS.find(z => z.id === s.phase)?.nombre}.`}</div>
-          <div className="cel-nota">Mira la mesa para seguir el juego. Si puedes reaccionar, te avisamos aquí.</div>
+          {!compacta && <div className="cel-nota">Mira la mesa para seguir el juego. Si puedes reaccionar, te avisamos aquí.</div>}
         </div>
       </div>
+      )}
       {desconectados.map(q => <button key={q.id} className="btn chico sec" onClick={() => convertirIA(q.id)}>{q.nombre} está desconectado: reemplazar por IA</button>)}
     </section>
   );
@@ -185,50 +337,21 @@ function accionCarta(s: GameState, me: Player, card: MorralCard, miTurno: boolea
   const cuando = m === 'victoria-rival' ? 'Se juega cuando un rival vence (te avisamos)' : m === 'combate-rival' ? 'Se juega en el combate de un rival (te avisamos)' : m === 'combate-propio' ? 'Se juega en tu combate' : m === 'construir' ? 'Se usa sola al construir' : m === 'objetivo' ? 'Se usa cuando te atacan (te avisamos)' : 'Se juega en tu turno';
   return { label: cuando, tono: 'claro' };
 }
-function CelMano({ s, me, dispatch, miTurno }: { s: GameState; me: Player; dispatch: (a: Action) => void; miTurno: boolean }) {
-  const [sel, setSel] = useState(0);
-  const [lanzando, setLanzando] = useState<number | null>(null);
+function CelMano({ s: _s, me, onVer }: { s: GameState; me: Player; onVer: (uid: number) => void }) {
   const mano = me.mano;
-  useEffect(() => { if (sel >= mano.length) setSel(Math.max(0, mano.length - 1)); }, [mano.length, sel]);
-  const card = mano[sel];
-  const n = mano.length;
-  if (!card) return <section className="cel-sel vacia"><div>Tu mano está vacía.</div><div className="cel-nota">Robas 1 carta del Morral cada vez que pasas por la Plaza.</div></section>;
-  const acc = accionCarta(s, me, card, miTurno);
-  const lanzar = () => {
-    if (!acc.accion || lanzando !== null) return;
-    const a = acc.accion;
-    setLanzando(card.uid);
-    try { navigator.vibrate?.(40); } catch { /* sin vibración */ }
-    setTimeout(() => { dispatch(a); setLanzando(null); }, 480);
-  };
+  if (!mano.length) return <section className="cel-mano vacia"><div>Tu mano está vacía.</div><div className="cel-nota">Robas 1 carta del Morral cada vez que pasas por la Plaza.</div></section>;
+  const w = horizontal() ? Math.max(130, Math.min(190, Math.floor((altoPantalla() - 60) * 5 / 7))) : Math.floor((anchoPantalla() - 14 * 2 - 12) / 2);
   return (
-    <>
-      <section className="cel-sel">
-        <div className={`cel-carta-wrap ${lanzando === card.uid ? 'lanzada' : ''}`} key={card.uid}>
-          <Carta {...propsMorral(card)} w={200} />
-        </div>
-        {lanzando === card.uid && <div className="cel-a-la-mesa">¡A la mesa!</div>}
-        <button className={`cel-accion ${acc.tono}`} disabled={!acc.accion || lanzando !== null} onClick={lanzar}>{acc.label}</button>
-      </section>
-      <section className="cel-abanico" aria-label="Tu mano">
-        <div className="cel-abanico-fila">
-          {mano.map((cd, i) => {
-            const ang = (i - (n - 1) / 2) * Math.min(8, 40 / Math.max(1, n));
-            const elegida = i === sel;
-            const ancho = Math.min(typeof window !== 'undefined' ? window.innerWidth : 390, 560) - 24;
-            const pasoX = n > 1 ? Math.min(84, (ancho - 88) / (n - 1)) : 88;
-            const margen = (pasoX - 88) / 2;
-            return (
-              <button key={cd.uid} className={`cel-mini-btn ${elegida ? 'sel' : ''}`} aria-label={nombreCarta(cd)} onClick={() => setSel(i)}
-                style={{ transform: `rotate(${ang}deg) translateY(${elegida ? -20 : Math.abs(i - (n - 1) / 2) * 4}px)`, marginLeft: margen, marginRight: margen, zIndex: i }}>
-                <Carta {...propsMorral(cd)} w={88} compacta sel={elegida} />
-              </button>
-            );
-          })}
-        </div>
-        <div className="cel-abanico-pie">{n}/{limiteMano(me)} cartas{me.guardados.length > 0 && <> · guardados: {me.guardados.map((g, i) => <DichoMini key={i} id={g} />)}</>}</div>
-      </section>
-    </>
+    <section className="cel-mano" aria-label="Tu mano">
+      <div className="cel-mano-grid">
+        {mano.map(cd => (
+          <button key={cd.uid} className="cel-mano-carta" aria-label={`Ver ${nombreCarta(cd)}`} onClick={() => onVer(cd.uid)}>
+            <Carta {...propsMorral(cd)} w={w} />
+          </button>
+        ))}
+      </div>
+      <div className="cel-mano-pie">{mano.length}/{limiteMano(me)} cartas · toca una para verla en grande{me.guardados.length > 0 && <> · guardados: {me.guardados.map((g, i) => <DichoMini key={i} id={g} />)}</>}</div>
+    </section>
   );
 }
 
@@ -295,7 +418,8 @@ function CelCombate({ s, me, dispatch, onCerrar }: { s: GameState; me: Player; d
       </section>
       {c.step === 'tirada' && !c.food && comidas.length > 0 && (
         <section className="cel-comer">
-          <div className="cel-et">Comer antes de confirmar (+D8)</div>
+          <div className="cel-et">Potenciadores · opcional</div>
+          <div className="cel-nota cel-pot-nota">Come algo para sumar 1 D8, o sigue sin usar nada.</div>
           <div className="cel-comer-grid">
             {comidas.map(x => x.kind === 'comida' && <button key={x.uid} onClick={() => dispatch({ t: 'comida', uid: x.uid })}><img src={IMG(x.img)} alt="" />{x.nombre}</button>)}
           </div>
@@ -308,8 +432,11 @@ function CelCombate({ s, me, dispatch, onCerrar }: { s: GameState; me: Player; d
           {!c.noFlee && <button className="cel-boton claro" onClick={() => dispatch({ t: 'huir' })}>Huir (D6: {me.apoyo === 'abuelo' || me.copiaApoyo === 'abuelo' ? '4' : '5'} o más)</button>}
         </>}
         {c.step === 'tirada' && <>
-          {lora && <button className="cel-boton claro" onClick={() => dispatch({ t: 'lora', uid: lora.uid })}>«Parapeto de lora»: dado bajo → 6</button>}
-          <button className="cel-boton" onClick={() => dispatch({ t: 'confirmar' })}>Confirmar tirada</button>
+          {lora && <button className="cel-boton claro" onClick={() => dispatch({ t: 'lora', uid: lora.uid })}>Potenciador: «Parapeto de lora» (dado bajo → 6)</button>}
+          <button className="cel-boton" onClick={() => dispatch({ t: 'confirmar' })}>
+            {c.food ? 'Confirmar tirada' : (comidas.length > 0 || lora) ? 'Seguir sin potenciador →' : 'Confirmar tirada'}
+          </button>
+          <div className="cel-nota cel-pot-ayuda">{poder! >= ataque ? `Vas ganando ${poder} contra ${ataque}.` : `Vas ${poder} contra ${ataque}: te faltan ${ataque - poder!}.`}</div>
         </>}
         {c.step === 'hecho' && <button className="cel-boton" onClick={onCerrar}>Continuar</button>}
       </div>
@@ -318,7 +445,7 @@ function CelCombate({ s, me, dispatch, onCerrar }: { s: GameState; me: Player; d
 }
 
 // ---------------- Decisiones y reacciones ----------------
-function CelDecision({ s, me, sala, dispatch }: { s: GameState; me: Player; sala: SalaInfo; dispatch: (a: Action) => void }) {
+function CelDecision({ s, me, sala, dispatch, onVer, onVerMesa }: { s: GameState; me: Player; sala: SalaInfo; dispatch: (a: Action) => void; onVer: (uid: number) => void; onVerMesa: () => void }) {
   const pnd = pendiente(s)!;
   const [elegida, setElegida] = useState<string | null>(null);
   const elegir = (id: string, lanzar: boolean) => {
@@ -338,6 +465,7 @@ function CelDecision({ s, me, sala, dispatch }: { s: GameState; me: Player; sala
         <div className="cel-cab-fila">
           <img src={IMG(personaje(me.personaje).img)} alt="" />
           <div className="cel-cab-nom"><div>{me.nombre}</div><span>{s.current === me.id ? 'Tu turno' : `Turno de ${p.nombre}`}</span></div>
+          <button className="cel-chip cel-ver-mesa" onClick={onVerMesa}>Ver la mesa</button>
         </div>
       </header>
       <section className="cel-decision">
@@ -359,9 +487,9 @@ function CelDecision({ s, me, sala, dispatch }: { s: GameState; me: Player; sala
         {salida.map(o => <button key={o.id} className="cel-opcion salida" onClick={() => elegir(o.id, false)}>{o.label}</button>)}
       </section>
       <section className="cel-mano-mini" aria-label="Tu mano">
-        <div className="cel-et claro">Tu mano · {me.mano.length} cartas</div>
+        <div className="cel-et claro">Tu mano · {me.mano.length} cartas · toca para ver</div>
         <div className="cel-mano-mini-fila">
-          {me.mano.map(cd => <Carta key={cd.uid} {...propsMorral(cd)} w={78} compacta />)}
+          {me.mano.map(cd => <button key={cd.uid} className="cel-mini-btn" onClick={() => onVer(cd.uid)}><Carta {...propsMorral(cd)} w={78} compacta /></button>)}
         </div>
       </section>
     </div>

@@ -80,8 +80,8 @@ export function Victoria({ s, onNueva, textoNueva = 'Volver al inicio' }: { s: G
 export function Reglas({ onCerrar }: { onCerrar: () => void }) {
   return (
     <Modal titulo="Cómo jugar" onCerrar={onCerrar} ancho={820} clase="modal-reglas">
-      <p><b>Cómo se juega:</b> una pantalla grande (TV o computador) abre la mesa y muestra el tablero; cada jugador entra desde su celular, que es su mano de cartas.</p>
-      <p><b>Objetivo:</b> ser el primero en construir la Casa, la Plaza de Mercado y la Iglesia, en ese orden y sin daños, con al menos 1 comida en la mano y 1 oro. Todos empiezan sin recursos.</p>
+      <p><b>Cómo se juega:</b> un jugador crea la partida y comparte el código; cada uno entra desde su PC o celular (en horizontal). Mientras otro juega, todos ven la mesa; cuando te toca jugar o reaccionar, tu pantalla cambia sola a tus controles.</p>
+      <p><b>Objetivo:</b> ser el primero en construir la Casa, la Plaza de Mercado y la Iglesia, en ese orden y sin daños, con al menos 1 comida en la mano y 1 oro. Todos empiezan con 8 cartas y sin oro ni materiales; el orden de turnos se decide tirando un D6 (límite de mano: 10).</p>
       <h3>El turno: 4 zonas en orden</h3>
       <ol>
         <li><b>Plaza:</b> robas 1 carta del Morral. Puedes contratar un personaje de apoyo (3 oro, luego 1 oro por turno), hacer 1 intercambio y equiparte (un arma, una prenda y una montura o calzado).</li>

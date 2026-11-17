@@ -157,6 +157,21 @@ io.on('connection', socket => {
     ack?.({ ok: true, codigo });
     unirMesa(sala);
   });
+  // Un jugador crea la partida desde su dispositivo: queda en el puesto 1 como anfitrión
+  socket.on('crearSala', ({ nombre } = {}, ack) => {
+    const codigo = nuevoCodigo();
+    const sala: Sala = {
+      codigo, host: '', n: 4, estado: null, chat: [], timer: null, timerReaccion: null, actualizado: Date.now(), modo: 'mesa', mesas: new Set(), limite: null,
+      asientos: [0, 1, 2, 3].map(() => ({ nombre: 'Puesto libre', ia: false, personaje: null, token: null, socketId: null })),
+    };
+    salas.set(codigo, sala);
+    const token = nuevoToken();
+    Object.assign(sala.asientos[0], { token, nombre: limpiarTexto(nombre) || 'Jugador 1' });
+    sala.host = token;
+    console.log(`Sala ${codigo} creada por ${sala.asientos[0].nombre}`);
+    ack?.({ ok: true, codigo, token, asiento: 0 });
+    unir(sala, 0);
+  });
   socket.on('reconectarMesa', ({ codigo }, ack) => {
     const sala = salas.get(String(codigo ?? '').toUpperCase());
     if (!sala) return ack?.({ ok: false });
@@ -236,8 +251,11 @@ io.on('connection', socket => {
     despues(sala);
   });
 
-  socket.on('accion', (a: Action) => {
-    const sala = salaDe(socket); if (!sala?.estado || !a || typeof a !== 'object') return;
+  socket.on('accion', (entrada: Action & { paso?: number }) => {
+    const sala = salaDe(socket); if (!sala?.estado || !entrada || typeof entrada !== 'object') return;
+    // Una acción hecha sobre un estado viejo (doble toque, red lenta) se descarta para no saltar zonas ni turnos
+    const { paso, ...a } = entrada as any;
+    if (typeof paso === 'number' && paso !== (sala.estado.paso ?? 0)) return;
     const yo = asientoDe(sala, socket); if (yo < 0) return;
     if (!accionValida(sala.estado, yo, a)) return;
     const ns = aplicar(sala.estado, a);

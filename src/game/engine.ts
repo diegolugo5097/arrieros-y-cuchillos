@@ -53,6 +53,12 @@ export interface GameState {
   combat: Combat | null; queue: Pending[]; log: { t: string; p?: number; n?: number }[]; logN?: number; winner: number | null;
   monteCount?: number; morralCount?: number;
   turn: TurnFlags; lastMonte: MonteCard | null; anuncio: { titulo: string; texto: string; img?: string } | null;
+  /** Orden de turnos decidido con el D6 inicial (ids de jugador). */
+  orden?: number[];
+  /** Tiradas para el orden: por jugador, la tirada inicial y los desempates. */
+  ordenTiradas?: Record<number, number[]>;
+  /** Contador de jugadas aplicadas: el servidor rechaza acciones hechas sobre un estado viejo. */
+  paso?: number;
 }
 
 export type Action =
@@ -66,7 +72,7 @@ export type Action =
   | { t: 'comprarMaterial'; id: MaterialId } | { t: 'usarTarde' } | { t: 'cerrarAnuncio' };
 
 /** Recursos con los que empieza cada jugador (reglamento: ninguno). */
-export const INICIO = { oro: 0, materiales: 0, cartas: 0 };
+export const INICIO = { oro: 0, materiales: 0, cartas: 8 };
 
 export const COLORES = ['#c0392b', '#2471a3', '#229954', '#b9770e'];
 
@@ -92,7 +98,7 @@ export const cur = (s: GameState) => s.players[s.current];
 export const nombreDe = (s: GameState, i: number) => s.players[i].nombre;
 export const rivales = (s: GameState, i: number) => s.players.map((_, k) => k).filter(k => k !== i);
 export const totalGolpe = (p: Player) => Object.values(p.equipo).reduce((a, e) => a + (e ? e.golpe : 0), 0);
-export const limiteMano = (p: Player) => (p.equipo.prenda?.nombre === 'Carriel' ? 9 : 7);
+export const limiteMano = (p: Player) => (p.equipo.prenda?.nombre === 'Carriel' ? 12 : 10);
 export const nombreCarta = (c: MorralCard) => (c.kind === 'exag' ? exag(c.id).nombre : c.nombre);
 const habilidadesBloqueadas = (s: GameState) => s.gato;
 export function pasivaApoyo(p: Player, id: ApoyoId): boolean { return p.apoyo === id || (p.apoyo === 'edilberto' && p.copiaApoyo === id); }
@@ -183,15 +189,37 @@ export function crearPartida(config: SetupPlayer[], seed = Date.now() % 21474836
     });
   });
   for (const p of s.players) darMorral(s, p, INICIO.cartas);
-  // Orden: D6 cada jugador, empates se repiten
-  let tiradas: number[]; let max: number;
-  do { tiradas = s.players.map(() => d(s, 6)); max = Math.max(...tiradas); } while (tiradas.filter(t => t === max).length > 1);
-  s.firstPlayer = tiradas.indexOf(max); s.current = s.firstPlayer;
   revelarApoyos(s);
-  log(s, `Empieza ${nombreDe(s, s.current)} (sacó ${max} en el D6).`);
-  iniciarTurno(s);
+  // Orden: cada jugador tira un D6 desde su celular; los empates vuelven a tirar
+  s.ordenTiradas = {};
+  log(s, 'Cada jugador tira un D6: el que saque más empieza.');
+  for (const p of s.players) pedirTiradaOrden(s, p.id, false);
   return s;
 }
+function pedirTiradaOrden(s: GameState, id: number, desempate: boolean) {
+  push(s, { kind: 'orden', player: id, title: desempate ? '¡Empate! Vuelve a tirar el dado' : 'Tira el dado para el orden de turnos',
+    text: 'El que saque más empieza; luego siguen de mayor a menor.', options: [{ id: 'tirar', label: 'Tirar el D6' }] });
+}
+const cmpTiradas = (a: number[], b: number[]) => { for (let k = 0; k < Math.max(a.length, b.length); k++) { const d1 = (a[k] ?? 0) - (b[k] ?? 0); if (d1) return d1; } return 0; };
+function resolverOrden(s: GameState) {
+  const t = s.ordenTiradas!;
+  const ids = s.players.map(p => p.id);
+  const empatados = ids.filter(i => ids.some(j => j !== i && cmpTiradas(t[i], t[j]) === 0));
+  if (empatados.length) {
+    log(s, `Empate entre ${empatados.map(i => nombreDe(s, i)).join(' y ')}: vuelven a tirar.`);
+    for (const i of empatados) pedirTiradaOrden(s, i, true);
+    return;
+  }
+  s.orden = [...ids].sort((a, b) => cmpTiradas(t[b], t[a]));
+  s.firstPlayer = s.orden[0]; s.current = s.orden[0];
+  const nombres = s.orden.map(i => nombreDe(s, i));
+  log(s, `Orden de turnos: ${nombres.join(' → ')}.`);
+  s.anuncio = { titulo: 'Orden de turnos', texto: nombres.map((n, k) => `${k + 1}. ${n}`).join('   ') };
+  iniciarTurno(s);
+}
+/** Orden de turnos (partidas viejas sin tirada: por asiento). */
+export const ordenDe = (s: GameState) => s.orden ?? s.players.map(p => p.id);
+const siguienteEnOrden = (s: GameState, id: number) => { const o = ordenDe(s); return o[(o.indexOf(id) + 1) % o.length]; };
 function nuevoTurno(): TurnFlags {
   return { intercambios: 0, mainUsada: false, apoyoUsada: false, compras: 0, construcciones: 0, tallerExtra: false,
     monteHecho: false, vendioPrimera: false, claudia: null, guacaErrantes: false, exagJugadas: 0 };
@@ -266,14 +294,14 @@ function finTurno(s: GameState) {
   p.marrano = false;
   s.turnsInRound++;
   if (s.turnsInRound >= s.players.length) finRonda(s);
-  else s.current = (s.current + 1) % s.players.length;
+  else s.current = siguienteEnOrden(s, s.current);
   iniciarTurno(s);
 }
 function finRonda(s: GameState) {
   s.turnsInRound = 0;
   s.herramientasDescarte.push(...s.reveladas); s.reveladas = []; reponerHerramientas(s);
   revelarApoyos(s);
-  s.firstPlayer = (s.firstPlayer + 1) % s.players.length; s.current = s.firstPlayer;
+  s.firstPlayer = siguienteEnOrden(s, s.firstPlayer); s.current = s.firstPlayer;
   s.round++; s.gato = false; s.evento = null;
   log(s, `===== Ronda ${s.round} =====`);
   if (s.round > 1 && s.round % 3 === 1) {
@@ -849,14 +877,19 @@ export function apoyoDisponible(s: GameState): boolean {
 
 // ---------------- Reducer ----------------
 export function aplicar(prev: GameState, a: Action): GameState {
+  const s = aplicarJugada(prev, a);
+  if (s !== prev) s.paso = (prev.paso ?? 0) + 1;
+  return s;
+}
+function aplicarJugada(prev: GameState, a: Action): GameState {
   const s: GameState = structuredClone(prev);
-  if (s.winner !== null) return s;
+  if (s.winner !== null) return prev;
   if (a.t === 'cerrarAnuncio') { s.anuncio = null; return s; }
   const pnd = pendiente(s);
   if (pnd && a.t !== 'choose') return prev;
   const p = cur(s);
   switch (a.t) {
-    case 'choose': if (!pnd) return prev; s.queue.shift(); resolverEleccion(s, pnd, a.id); break;
+    case 'choose': if (!pnd || !pnd.options.some(o => o.id === a.id)) return prev; s.queue.shift(); resolverEleccion(s, pnd, a.id); break;
     case 'next': {
       if (!puedeAvanzar(s)) return prev;
       if (s.phase === 'plaza') entrarMonte(s);
@@ -1193,6 +1226,13 @@ function resolverEleccion(s: GameState, pnd: Pending, id: string) {
       break;
     }
     case 'info': break;
+    case 'orden': {
+      const r = d(s, 6);
+      (s.ordenTiradas![p.id] ??= []).push(r);
+      log(s, `${p.nombre} lanza ${r}.`, p.id);
+      if (!s.queue.some(q => q.kind === 'orden')) resolverOrden(s);
+      break;
+    }
   }
 }
 
