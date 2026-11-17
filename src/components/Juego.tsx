@@ -1,6 +1,6 @@
 // Vista de juego en cada dispositivo (PC o celular en horizontal).
 // Todos ven la mesa mientras otro juega; cada uno pasa a sus controles solo cuando le toca jugar o intervenir.
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { GameState, pendiente } from '../game/engine';
 import { IMG } from '../game/data';
 import { Action } from '../game/engine';
@@ -42,12 +42,23 @@ export function Juego(props: Props) {
 }
 
 /**
- * Ícono flotante de la mano: queda medio escondido en el borde derecho para no tapar la mesa.
- * Un toque abre tus cartas; con el mouse encima sale completo.
+ * Botón flotante de la mano: aparece al tocar la pantalla y se oculta solo tras unos segundos sin tocar,
+ * para que la mesa se vea completa. Un toque en el botón abre tus cartas.
  */
 function BotonMano({ n, onAbrir }: { n: number; onAbrir: () => void }) {
+  const [visible, setVisible] = useState(true);
+  const prev = useRef(n);
+  useEffect(() => {
+    let id = window.setTimeout(() => setVisible(false), 3500);
+    const mostrar = () => { setVisible(true); clearTimeout(id); id = window.setTimeout(() => setVisible(false), 3500); };
+    window.addEventListener('pointerdown', mostrar, true);
+    window.addEventListener('pointermove', mostrar, true);
+    return () => { clearTimeout(id); window.removeEventListener('pointerdown', mostrar, true); window.removeEventListener('pointermove', mostrar, true); };
+  }, []);
+  // Si cambia tu número de cartas, se asoma un momento para avisarte
+  useEffect(() => { if (prev.current !== n) { prev.current = n; setVisible(true); const id = setTimeout(() => setVisible(false), 3000); return () => clearTimeout(id); } }, [n]);
   return (
-    <button className="mesa-mano-flotante" onClick={onAbrir} aria-label={`Mis cartas: ${n}`} title="Mis cartas">
+    <button className={`mesa-mano-flotante ${visible ? '' : 'oculto'}`} onClick={onAbrir} aria-label={`Mis cartas: ${n}`} title="Mis cartas">
       <img src={IMG('cartas/dorso-morral')} alt="" />
       <b>{n}</b>
     </button>

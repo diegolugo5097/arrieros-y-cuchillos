@@ -55,7 +55,7 @@ En celulares el juego se ve en horizontal; si el celular está vertical, aparece
 - los dichos y eventos (se quedan entre 9 y 16 segundos, con una barra de tiempo);
 - el pueblo de cada jugador.
 
-Las cartas jugadas cruzan volando hasta el mapa o el combate, los mitos aparecen en grande, los dados ruedan y el resultado cae como un sello. El ícono flotante del Morral (con tu número de cartas, asomado en el borde derecho) abre tu mano sin esperar tu turno.
+Las cartas jugadas cruzan volando hasta el mapa o el combate, los mitos aparecen en grande, los dados ruedan y el resultado cae como un sello. La mesa ocupa toda la pantalla. Un botón flotante con el Morral y tu número de cartas aparece al tocar la pantalla (o al cambiar tu mano) y se oculta solo a los pocos segundos; tócalo para ver tu mano sin esperar tu turno.
 
 **Cuando te toca jugar o intervenir, la pantalla cambia sola a tus controles:**
 - Tu turno: pestañas **Mano**, **Mi turno** (acciones de la zona y botón para avanzar) y **Pueblo**, con un botón para **Ver la mesa**.

@@ -9,25 +9,36 @@ import { GameState, ataqueMito, poderJugador, dadosUsados, totalGolpe, cartasEnM
 import { SalaInfo, Anuncio, SERVIDOR } from '../net/red';
 import { ControlSonido } from './Controles';
 import { Dados, Dado, Carta, propsMito } from './Cartas';
-import { CapaEfectos, useEfectosMesa } from './Efectos';
+import { CapaEfectos, useEfectosMesa, EscenarioCtx } from './Efectos';
 import { Victoria } from './Modales';
 
 /** Escenario de 1920×1080 escalado para llenar cualquier pantalla. */
+/**
+ * Escenario de base 1920×1080 que llena toda la pantalla: se escala por la altura (o el ancho)
+ * y se estira en la otra dirección, así no quedan barras a los lados en celulares alargados.
+ */
 function Escenario({ children, girable, reserva = 0 }: { children: React.ReactNode; girable?: boolean; reserva?: number }) {
-  const [k, setK] = useState({ k: 1, girar: false });
+  const [e, setE] = useState({ k: 1, girar: false, w: 1920, h: 1080 });
   useEffect(() => {
     const f = () => {
-      const w = window.innerWidth, h = window.innerHeight;
-      // En un celular vertical, la mesa se gira 90° para aprovechar la pantalla
-      const girar = !!girable && h > w;
-      // «reserva»: franja libre a la derecha (para el botón de Mis cartas), así no tapa nada del tablero
-      setK({ girar, k: girar ? Math.min(h / 1920, w / 1080) : Math.min((w - reserva) / 1920, h / 1080) });
+      const girar = !!girable && window.innerHeight > window.innerWidth;
+      const W = (girar ? window.innerHeight : window.innerWidth) - reserva, H = girar ? window.innerWidth : window.innerHeight;
+      const ancho = W / H >= 1920 / 1080;
+      const k = ancho ? H / 1080 : W / 1920;
+      setE({ k, girar, w: ancho ? W / k : 1920, h: ancho ? 1080 : H / k });
     };
     f(); window.addEventListener('resize', f); return () => window.removeEventListener('resize', f);
   }, [girable, reserva]);
+  const esc = useMemo(() => ({ ex: e.w - 1920, ey: e.h - 1080 }), [e.w, e.h]);
   return (
     <div className={`mesa-fondo ${girable ? 'en-celular' : ''}`}>
-      <div className="mesa-escenario" style={{ left: reserva ? `calc(50% - ${reserva / 2}px)` : undefined, transform: `translate(-50%, -50%)${k.girar ? ' rotate(90deg)' : ''} scale(${k.k})` }}>{children}</div>
+      <EscenarioCtx.Provider value={esc}>
+        <div className="mesa-escenario" style={{
+          width: e.w, height: e.h, left: reserva ? `calc(50% - ${reserva / 2}px)` : undefined,
+          transform: `translate(-50%, -50%)${e.girar ? ' rotate(90deg)' : ''} scale(${e.k})`,
+          ['--ex' as string]: `${esc.ex}px`, ['--ey' as string]: `${esc.ey}px`,
+        }}>{children}</div>
+      </EscenarioCtx.Provider>
     </div>
   );
 }

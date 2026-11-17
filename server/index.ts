@@ -255,11 +255,12 @@ io.on('connection', socket => {
     const sala = salaDe(socket); if (!sala?.estado || !entrada || typeof entrada !== 'object') return;
     // Una acción hecha sobre un estado viejo (doble toque, red lenta) se descarta para no saltar zonas ni turnos
     const { paso, ...a } = entrada as any;
-    if (typeof paso === 'number' && paso !== (sala.estado.paso ?? 0)) return;
-    const yo = asientoDe(sala, socket); if (yo < 0) return;
-    if (!accionValida(sala.estado, yo, a)) return;
+    const dbg = (m: string) => { if (process.env.DEPURAR) console.log(`[accion] ${m}`, JSON.stringify(a), 'paso', paso, 'srv', sala.estado?.paso, 'cola', sala.estado?.queue[0]?.kind, sala.estado?.queue[0]?.player); };
+    if (typeof paso === 'number' && paso !== (sala.estado.paso ?? 0)) return dbg('paso viejo');
+    const yo = asientoDe(sala, socket); if (yo < 0) return dbg('sin asiento');
+    if (!accionValida(sala.estado, yo, a)) return dbg(`no válida para ${yo}`);
     const ns = aplicar(sala.estado, a);
-    if (ns === sala.estado) return;
+    if (ns === sala.estado) return dbg('rechazada por el motor');
     sala.estado = ns; despues(sala);
   });
 

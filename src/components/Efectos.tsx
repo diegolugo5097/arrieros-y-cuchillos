@@ -1,6 +1,6 @@
 // Efectos animados de la pantalla de mesa: cartas lanzadas, aparición de mitos,
 // dados grandes, resultados de combate, sabotajes y construcciones.
-import { useEffect, useRef, useState } from 'react';
+import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { IMG, EXAGERACIONES, EQUIPO, COMIDA, mito, EDIFICIOS, BuildingId, TIER_NOMBRE } from '../game/data';
 import { GameState, MorralCard } from '../game/engine';
 import { Carta, CartaProps, Dado, propsMito, propsMorral } from './Cartas';
@@ -16,13 +16,17 @@ type Efecto =
 const DURACION: Record<Efecto['tipo'], number> = { carta: 2000, mito: 1900, dados: 1500, resultado: 2100, sabotaje: 1700, construir: 2000 };
 let sig = 1;
 
-/** Centro (en coordenadas del escenario 1920×1080) del pueblo de cada jugador. */
-function origenJugador(i: number, n: number) {
-  const ancho = (1884 - 14 * (n - 1)) / n;
-  return { x: 18 + i * (ancho + 14) + ancho / 2, y: 940 };
+/**
+ * El escenario mide 1920×1080 «de base» y se estira para llenar la pantalla:
+ * ex / ey = píxeles que se agregaron a lo ancho / a lo alto.
+ */
+export const EscenarioCtx = createContext({ ex: 0, ey: 0 });
+
+/** Centro (en coordenadas del escenario) del pueblo de cada jugador. */
+function origenJugador(i: number, n: number, ex = 0, ey = 0) {
+  const ancho = (1884 + ex - 14 * (n - 1)) / n;
+  return { x: 18 + i * (ancho + 14) + ancho / 2, y: 940 + ey / 2 };
 }
-const CENTRO_MAPA = { x: 920, y: 450 };
-const PANEL_COMBATE = { x: 1712, y: 420 };
 
 function cartaPorNombre(nombre: string): CartaProps | null {
   const ex = EXAGERACIONES.find(e => e.nombre === nombre);
@@ -91,12 +95,15 @@ export function useEfectosMesa(s: GameState) {
 }
 
 export function CapaEfectos({ s, efecto, rapido }: { s: GameState; efecto: ReturnType<typeof useEfectosMesa>['actual']; rapido: boolean }) {
+  const esc = useContext(EscenarioCtx);
   if (!efecto) return null;
   const n = s.players.length;
+  const CENTRO_MAPA = { x: 920 + esc.ex / 2.25, y: 450 };
+  const PANEL_COMBATE = { x: 1712 + esc.ex * 0.722, y: 420 };
   const vel = rapido ? { animationDuration: '1.2s' } : undefined;
   switch (efecto.tipo) {
     case 'carta': {
-      const o = origenJugador(efecto.de, n);
+      const o = origenJugador(efecto.de, n, esc.ex, esc.ey);
       const st = { '--x0': `${o.x}px`, '--y0': `${o.y}px`, '--x1': `${CENTRO_MAPA.x}px`, '--y1': `${CENTRO_MAPA.y}px`, ...vel } as React.CSSProperties;
       return (
         <div className="fx-capa" key={efecto.id}>
@@ -137,7 +144,7 @@ export function CapaEfectos({ s, efecto, rapido }: { s: GameState; efecto: Retur
         </div>
       );
     case 'sabotaje': {
-      const o = origenJugador(efecto.de, n);
+      const o = origenJugador(efecto.de, n, esc.ex, esc.ey);
       const st = { '--x0': `${o.x}px`, '--y0': `${o.y}px`, '--x1': `${PANEL_COMBATE.x}px`, '--y1': `${PANEL_COMBATE.y}px` } as React.CSSProperties;
       return (
         <div className="fx-capa" key={efecto.id}>
