@@ -299,6 +299,7 @@ export function MesaCombate({ s, restante }: { s: GameState; restante: number | 
           <div className="mesa-dados"><Dados valores={c.dice} descartado={c.dice.length === 3 ? Math.min(...c.dice) : undefined} /><span>{p.nombre} sacó <b>{dadosUsados(c).join(' + ')}</b> + {totalGolpe(p)} de equipo{c.bonus ? ` ${c.bonus > 0 ? '+' : '−'} ${Math.abs(c.bonus)}` : ''}{c.food ? <> + <Dado v={c.food.d8} color="azul" /> {c.food.nombre}</> : null}</span></div>
         ) : <div className="mesa-dados"><span>{p.nombre} con +{totalGolpe(p)} de equipo</span></div>}
         {c.sabotage && <div className="mesa-sabotaje"><Dado v={c.sabotage.d8} color="azul" /> sabotaje de {s.players[c.sabotage.by].nombre}{c.bizco ? ' · ataque doble' : ''}</div>}
+        {c.respuesta && <div className="mesa-sabotaje mesa-respuesta"><Dado v={c.respuesta.d8} color="azul" /> {s.players[c.fighter].nombre} responde con {c.respuesta.con}</div>}
         <div className="mesa-combate-estado">{estado}</div>
       </div>
     </aside>

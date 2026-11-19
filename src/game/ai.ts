@@ -152,6 +152,15 @@ function elegir(s: GameState, pnd: Pending): string {
       return 'dejar';
     }
     case 'jairo': return 'si';
+    case 'respuesta': {
+      // Responde solo si va perdiendo y la respuesta puede alcanzar
+      const c = s.combat!;
+      const falta = ataqueMito(s, c) - poderJugador(s, c);
+      if (falta <= 0 || falta > 8) return 'pasar';
+      const lora = ids.find(i => i.startsWith('lora'));
+      if (lora && 6 - Math.min(...c.dice) >= falta) return lora;
+      return ids.find(i => i.startsWith('resp')) ?? 'pasar';
+    }
     case 'reaccion': {
       const c = s.combat!; const f = s.players[c.fighter];
       const poder = poderJugador(s, c), ataque = ataqueMito(s, c);

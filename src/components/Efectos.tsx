@@ -59,6 +59,8 @@ export function useEfectosMesa(s: GameState) {
         const c = cartaPorNombre(m[1]);
         if (c) out.push({ id: sig++, tipo: 'carta', de: l.p ?? 0, carta: c, texto: `${nombre(l.p)} sabotea`, color: color(l.p) });
         out.push({ id: sig++, tipo: 'sabotaje', de: l.p ?? 0, d8: Number(m[2]), texto: `¡Sabotaje de ${nombre(l.p)}! +${m[2]} al mito`, color: color(l.p) });
+      } else if ((m = l.t.match(/ responde con (.+?): \+(\d+)/))) {
+        const c = cartaPorNombre(m[1]); if (c) out.push({ id: sig++, tipo: 'carta', de: l.p ?? 0, carta: c, texto: `¡${nombre(l.p)} responde! +${m[2]} a su poder`, color: color(l.p) });
       } else if ((m = l.t.match(/ come (.+?): \+/))) {
         const c = cartaPorNombre(m[1]); if (c) out.push({ id: sig++, tipo: 'carta', de: l.p ?? 0, carta: c, texto: `${nombre(l.p)} come para pelear`, color: color(l.p) });
       } else if ((m = l.t.match(/ se equipa (.+?) \(/))) {

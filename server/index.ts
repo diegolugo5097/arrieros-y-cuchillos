@@ -23,7 +23,7 @@ interface Sala {
   codigo: string; host: string; n: number; asientos: Asiento[]; estado: GameState | null; modo: 'red' | 'mesa';
   chat: Mensaje[]; timer: NodeJS.Timeout | null; timerReaccion: NodeJS.Timeout | null; actualizado: number;
   mesas: Set<string>; // sockets de las pantallas de mesa (observadoras)
-  limite: { player: number; hasta: number } | null;
+  limite: { player: number; hasta: number; clave?: string } | null;
 }
 const SEG_REACCION = 15;
 const lanIps = () => Object.values(networkInterfaces()).flat().filter(n => n && n.family === 'IPv4' && !n.internal).map(n => n!.address);
@@ -93,9 +93,11 @@ function despues(sala: Sala) {
   if (sala.timerReaccion) { clearTimeout(sala.timerReaccion); sala.timerReaccion = null; }
   // Reacciones con tiempo límite para que nadie bloquee la partida
   const pnd = s.queue[0];
-  const conLimite = pnd && !s.players[pnd.player].ia && ['reaccion', 'victoria-rival', 'otro-perro'].includes(pnd.kind);
+  const conLimite = pnd && !s.players[pnd.player].ia && ['reaccion', 'respuesta', 'victoria-rival', 'otro-perro'].includes(pnd.kind);
   const antes = sala.limite;
-  sala.limite = conLimite ? (antes && antes.player === pnd.player ? antes : { player: pnd.player, hasta: Date.now() + SEG_REACCION * 1000 }) : null;
+  // Cada decisión tiene su propio reloj: si cambia la decisión (aunque sea del mismo jugador), se reinicia
+  const clave = pnd ? `${pnd.kind}|${pnd.player}|${pnd.title}|${pnd.options.map(o => o.id).join(',')}` : '';
+  sala.limite = conLimite ? (antes && antes.clave === clave ? antes : { player: pnd.player, hasta: Date.now() + SEG_REACCION * 1000, clave }) : null;
   if (conLimite) {
     const op = pnd.options.find(o => o.id === 'pasar' || o.id === 'no')?.id ?? pnd.options[pnd.options.length - 1].id;
     sala.timerReaccion = setTimeout(() => {

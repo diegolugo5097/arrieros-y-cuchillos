@@ -159,10 +159,12 @@ function CartaGrande({ s, me, card, miTurno, dispatch, onCerrar }: { s: GameStat
   const acc = accionCarta(s, me, card, miTurno);
   // Si ya tienes algo equipado en esa ranura, se pregunta antes de reemplazarlo
   const actual = card.kind === 'equipo' ? me.equipo[card.slot] : undefined;
+  // En la Plaza, el equipo de la mano también se puede vender (además de equiparlo)
+  const venta: Action | null = miTurno && s.phase === 'plaza' && card.kind === 'equipo' ? { t: 'vender', item: { k: 'carta', uid: card.uid } } : null;
   const w = Math.floor(horizontal() ? Math.min(380, (altoPantalla() - 36) * 5 / 7) : Math.min(anchoPantalla() - 48, 380, (altoPantalla() - 190) * 5 / 7));
-  const lanzar = () => {
-    if (!acc.accion || lanzando) return;
-    const a = acc.accion;
+  const lanzar = (otra?: Action) => {
+    const a = otra ?? acc.accion;
+    if (!a || lanzando) return;
     setLanzando(true);
     try { navigator.vibrate?.(40); } catch { /* */ }
     setTimeout(() => { dispatch(a); onCerrar(); }, 480);
@@ -182,13 +184,14 @@ function CartaGrande({ s, me, card, miTurno, dispatch, onCerrar }: { s: GameStat
               <i aria-hidden="true">→</i>
               <div className="nuevo"><img src={IMG(card.img)} alt="" /><b>{card.nombre}</b><span>+{card.golpe}</span><em>{card.golpe > actual.golpe ? `Ganas +${card.golpe - actual.golpe}` : card.golpe < actual.golpe ? `Pierdes ${actual.golpe - card.golpe}` : 'Igual golpe'}</em></div>
             </div>
-            <button className="cel-accion dorado" onClick={lanzar}>Sí, reemplazar</button>
+            <button className="cel-accion dorado" onClick={() => lanzar()}>Sí, reemplazar</button>
             <button className="cel-accion claro sec" onClick={() => setConfirmar(false)}>No, dejar el {actual.nombre}</button>
           </div>
         ) : <>
-          <button className={`cel-accion ${acc.tono}`} disabled={!acc.accion || lanzando} onClick={() => (actual && acc.accion ? setConfirmar(true) : lanzar())}>
-            {actual && acc.accion ? `Equipar (reemplaza ${actual.nombre})` : acc.label}
+          <button className={`cel-accion ${acc.tono}`} disabled={!acc.accion || lanzando} onClick={() => (actual && acc.accion?.t === 'equipar' ? setConfirmar(true) : lanzar())}>
+            {actual && acc.accion?.t === 'equipar' ? `Equipar (reemplaza ${actual.nombre})` : acc.label}
           </button>
+          {venta && <button className="cel-accion claro" disabled={lanzando} onClick={() => lanzar(venta)}>Vender (+{valorVenta(s, me, { k: 'carta', c: card })} oro)</button>}
           <button className="cel-accion claro sec" onClick={onCerrar}>Cerrar</button>
         </>}
       </div>
@@ -343,10 +346,10 @@ function accionCarta(s: GameState, me: Player, card: MorralCard, miTurno: boolea
   if (card.kind === 'equipo') {
     if (miTurno && s.phase === 'plaza') return { label: `Equipar (+${card.golpe})`, accion: { t: 'equipar', uid: card.uid }, tono: 'dorado' };
     if (miTurno && s.phase === 'campo') return { label: `Vender (+${valorVenta(s, me, { k: 'carta', c: card })} oro)`, accion: { t: 'vender', item: { k: 'carta', uid: card.uid } }, tono: 'claro' };
-    return { label: 'Se equipa en la Plaza', tono: 'claro' };
+    return { label: 'Se equipa o se vende en la Plaza', tono: 'claro' };
   }
   if (card.kind === 'comida') {
-    if (miTurno && s.phase === 'campo') return { label: `Vender (+${valorVenta(s, me, { k: 'carta', c: card })} oro)`, accion: { t: 'vender', item: { k: 'carta', uid: card.uid } }, tono: 'claro' };
+    if (miTurno && (s.phase === 'campo' || s.phase === 'plaza')) return { label: `Vender (+${valorVenta(s, me, { k: 'carta', c: card })} oro)`, accion: { t: 'vender', item: { k: 'carta', uid: card.uid } }, tono: 'claro' };
     return { label: 'Guárdala para el combate', tono: 'claro' };
   }
   if (miTurno && exagJugable(s, card.uid)) return { label: 'Jugar en la mesa', accion: { t: 'exag', uid: card.uid }, tono: 'rojo' };
@@ -441,6 +444,7 @@ function CelCombate({ s, me, dispatch, onCerrar }: { s: GameState; me: Player; d
         <div className="mesa-marcador chico"><div className="verde">{poder ?? '?'}</div><span>contra</span><div className="rojo">{ataque}</div></div>
         {c.dice.length > 0 && <div className="cel-dados" key={c.dice.join("-")}><Dados valores={c.dice} descartado={c.dice.length === 3 ? Math.min(...c.dice) : undefined} /><span>{dadosUsados(c).join(' + ')} + {totalGolpe(me)} de equipo{c.bonus ? ` ${c.bonus > 0 ? '+' : '−'} ${Math.abs(c.bonus)}` : ''}{c.food ? <> + <Dado v={c.food.d8} color="azul" /></> : null}</span></div>}
         {c.sabotage && <div className="cel-nota"><Dado v={c.sabotage.d8} color="azul" /> sabotaje de {s.players[c.sabotage.by].nombre}</div>}
+        {c.respuesta && <div className="cel-nota cel-respuesta"><Dado v={c.respuesta.d8} color="azul" /> tu respuesta con {c.respuesta.con}</div>}
         {c.step === 'decidir' && <div className="cel-nota">Probabilidad de ganar: <b>{Math.round(prob * 100)}%</b>{comidas.length > 0 && <> · con comida <b>{Math.round(probC * 100)}%</b></>}</div>}
         {c.step === 'tirada' && <div className="cel-nota">{poder! >= ataque ? 'Vas ganando.' : `Te faltan ${ataque - poder!}.`} Cuando confirmes, tus rivales tendrán unos segundos para sabotear.</div>}
         {(c.step === 'rivales' || c.step === 'victoria') && <div className="cel-nota">Tus rivales deciden en sus celulares…</div>}
@@ -515,7 +519,7 @@ function CelDecision({ s, me, sala, dispatch, onVer, onVerMesa }: { s: GameState
       <section className="cel-opciones">
         {ops.length > 0 && <div className="cel-et">{pnd.kind === 'reaccion' || pnd.kind === 'victoria-rival' ? 'Lanza una carta a la mesa' : 'Elige'}</div>}
         {ops.map(o => (
-          <button key={o.id} className={`cel-opcion ${cartaDeOpcion(o.id, me) ? 'con-carta' : ''} ${elegida === o.id ? 'lanzada' : ''}`} onClick={() => elegir(o.id, /^(food|perro|bizco|tigre|filo):/.test(o.id) || pnd.kind === 'exag-objetivo')}>
+          <button key={o.id} className={`cel-opcion ${cartaDeOpcion(o.id, me) ? 'con-carta' : ''} ${elegida === o.id ? 'lanzada' : ''}`} onClick={() => elegir(o.id, /^(food|perro|bizco|tigre|filo|resp|lora):/.test(o.id) || pnd.kind === 'exag-objetivo')}>
             {cartaDeOpcion(o.id, me) ? <Carta {...propsMorral(cartaDeOpcion(o.id, me)!)} w={74} compacta /> : o.img ? <img src={IMG(o.img)} alt="" /> : (o.label.startsWith('«') || o.id.startsWith('bizco') || o.id.startsWith('perro') || o.id.startsWith('tigre') || o.id.startsWith('filo')) ? <span className="cel-opcion-exag" style={{ backgroundImage: `url(${IMG('cartas/ilustracion-exageraciones')})` }} /> : null}
             <span><b>{o.label}</b>{o.detail && <span>{o.detail}</span>}</span>
           </button>

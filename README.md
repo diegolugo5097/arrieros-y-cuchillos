@@ -60,6 +60,7 @@ Las cartas jugadas cruzan volando hasta el mapa o el combate, los mitos aparecen
 **Cuando te toca jugar o intervenir, la pantalla cambia sola a tus controles:**
 - Tu turno: pestañas **Mano**, **Mi turno** (acciones de la zona y botón para avanzar) y **Pueblo**, con un botón para **Ver la mesa**.
 - Reacciones (sabotear, «Mató el tigre…»): una cuenta regresiva de 15 segundos.
+- **Responder a un sabotaje:** si un rival potencia al mito mientras peleas, te toca responder (15 s): una comida o licor de tu mano te suma 1 D8, o el «Parapeto de lora» pone tu dado más bajo en 6. Una respuesta por combate; la IA también responde.
 - Combate: en dos columnas, con el mito a un lado y tus opciones al otro; si tienes comida o licor, aparece **Seguir sin potenciador** para pelear sin usarlos.
 
 Al terminar, la pantalla vuelve sola a la mesa.
@@ -117,10 +118,11 @@ El botón de sonido permite apagar o ajustar la música y los efectos por separa
 ## Reglas
 
 - De 2 a 4 jugadores; cada puesto puede ser una persona o la IA.
-- Al empezar, cada jugador tira un D6 desde su celular: el que saque más arranca y los demás siguen de mayor a menor (los empates vuelven a tirar). El primer jugador rota cada ronda siguiendo ese orden.
+- Al empezar, cada jugador tira un D6 desde su celular: el que saque más arranca y los demás siguen de mayor a menor (los empates vuelven a tirar). El orden se mantiene igual toda la partida: cada ronda empieza el mismo jugador.
 - Todos empiezan con 8 guacas (cartas del mazo de Guacas), sin oro ni materiales. El límite de mano es 10 (12 con el Carriel).
 - **Guacas:** son las cartas del mazo de Guacas: equipo, comida y exageraciones paisas. Robas 1 en cada Plaza, y al vencer un mito recibes las guacas que indica (1 a 3 cartas a tu mano). También las dan algunos dichos, apoyos y eventos. Los edificios no piden guacas, solo materiales y herramientas.
 - En la pestaña **Mano** ves todas tus guacas; al tocar una se ve completa en grande, con su acción.
+- **Vender guacas:** el equipo y la comida de la mano se venden en la Plaza o en el Campo. El equipo vale la mitad de su golpe (mínimo 1 oro); el alimento 1, la carne y el licor 2. En la Plaza, una carta de equipo muestra **Equipar** y **Vender**.
 - Avisos en pantalla: si otro jugador te quita cartas, te dice cuáles y por qué; al recibir guacas, te dice cuáles llegaron a tu mano.
 - Al equiparte algo en una ranura ocupada (arma, prenda o montura), el juego pregunta si quieres reemplazarlo y muestra la comparación de golpe; lo anterior se descarta.
 - Al vencer un mito ganas oro, guacas (cartas) y 1 material. Un rival puede anularte el oro y las guacas con «Mató el tigre» o quedarse con el oro con «Filo»; la pantalla de resultado te lo dice.

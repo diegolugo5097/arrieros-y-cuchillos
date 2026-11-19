@@ -90,7 +90,7 @@ export function Reglas({ onCerrar }: { onCerrar: () => void }) {
         <li><b>Campo:</b> cosechas 1 oro + 1 por edificio sano, y compras o vendes en el Fondo del Pueblo.</li>
       </ol>
       <h3>Combate</h3>
-      <p>Poder = 2D6 + equipo + bonos + comida (D8 opcional, una por combate). Ganas si igualas o superas el ataque. Un rival puede sabotear gastando una comida (+D8 al mito). Si ganas: oro, guacas y 1 material.</p>
+      <p>Poder = 2D6 + equipo + bonos + comida (D8 opcional, una por combate). Ganas si igualas o superas el ataque. Un rival puede sabotear gastando una comida (+D8 al mito); si te sabotean, puedes responder una vez con otra comida o licor (+D8 a tu poder) o con el «Parapeto de lora». Si ganas: oro, guacas y 1 material.</p>
       <table className="tabla-reglas">
         <thead><tr><th>Nivel</th><th>Ataque</th><th>Recompensa</th></tr></thead>
         <tbody>
@@ -101,7 +101,7 @@ export function Reglas({ onCerrar }: { onCerrar: () => void }) {
         </tbody>
       </table>
       <h3>Precios</h3>
-      <p>Materiales: compra 2, venta 1 · Puntilla 4 · Martillo 6 · Serrucho 8 (venta a la mitad) · Alimento se vende a 1, carne y licor a 2.</p>
+      <p>Materiales: compra 2, venta 1 · Puntilla 4 · Martillo 6 · Serrucho 8 (venta a la mitad) · Alimento se vende a 1, carne y licor a 2; el equipo, a la mitad de su golpe (mínimo 1). Las cartas de la mano se venden en la Plaza o en el Campo.</p>
       <h3>Edificios</h3>
       <p>Casa: Guadua + Madera + Barro · Plaza de Mercado: lo mismo + Martillo + Puntilla · Iglesia: lo mismo + Martillo + Puntilla + Serrucho.</p>
       <h3>Cartas especiales</h3>

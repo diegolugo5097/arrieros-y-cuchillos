@@ -36,6 +36,8 @@ export interface Combat {
   step: 'decidir' | 'tirada' | 'rivales' | 'victoria' | 'hecho';
   dice: number[]; bonus: number; food: { d8: number; tipo: FoodKind; nombre: string } | null;
   sabotage: { by: number; d8: number; con: string } | null; bizco: boolean; noFlee: boolean;
+  /** Respuesta de quien pelea a un sabotaje: +D8 con una comida o licor. */
+  respuesta?: { d8: number; con: string; licor: boolean } | null;
   reactQueue: number[]; winQueue: number[]; result: 'gana' | 'pierde' | 'huye' | 'escapa' | null;
   reward: { oro: number; guacas: number } | null; wilsonUsado: boolean;
 }
@@ -312,7 +314,8 @@ function finRonda(s: GameState) {
   s.turnsInRound = 0;
   s.herramientasDescarte.push(...s.reveladas); s.reveladas = []; reponerHerramientas(s);
   revelarApoyos(s);
-  s.firstPlayer = siguienteEnOrden(s, s.firstPlayer); s.current = s.firstPlayer;
+  // El orden de turnos es fijo toda la partida (el que sacó más en el D6 empieza cada ronda)
+  s.firstPlayer = ordenDe(s)[0]; s.current = s.firstPlayer;
   s.round++; s.gato = false; s.evento = null;
   log(s, `===== Ronda ${s.round} =====`);
   if (s.round > 1 && s.round % 3 === 1) {
@@ -363,7 +366,7 @@ export function valorVenta(s: GameState, p: Player, item: { k: 'mat' } | { k: 't
   if (item.k === 'mat') v = 1 + (clem ? 1 : 0);
   else if (item.k === 'tool') v = Math.floor(HERRAMIENTAS[item.id].precio / 2);
   else if (item.c.kind === 'comida') v = VENTA_COMIDA[item.c.tipo] + (clem ? 1 : 0);
-  else if (item.c.kind === 'equipo') v = 1;
+  else if (item.c.kind === 'equipo') v = Math.max(1, Math.ceil(item.c.golpe / 2)); // el equipo vale según su golpe
   else v = 0;
   if (s.evento === 'auge') v *= 2;
   return v;
@@ -409,7 +412,7 @@ export function bonoComida(s: GameState, p: Player, c: Combat) {
 }
 export function poderJugador(s: GameState, c: Combat) {
   const p = s.players[c.fighter];
-  return dadosUsados(c).reduce((a, b) => a + b, 0) + totalGolpe(p) + c.bonus + bonoComida(s, p, c);
+  return dadosUsados(c).reduce((a, b) => a + b, 0) + totalGolpe(p) + c.bonus + bonoComida(s, p, c) + (c.respuesta?.d8 ?? 0);
 }
 /** Probabilidad aproximada de vencer (para IA y ayuda en pantalla). */
 export function probVictoria(s: GameState, p: Player, ataque: number, extraBonus = 0, conComida = false): number {
@@ -459,6 +462,24 @@ function opcionesReaccion(s: GameState, i: number): Option[] {
   if (!c.bizco) { const b = r.mano.find(x => x.kind === 'exag' && x.id === 'bizco'); if (b) ops.push({ id: `bizco:${b.uid}`, label: exag('bizco').nombre, detail: 'Duplica ataque y recompensa' }); }
   return ops;
 }
+/** Tras un sabotaje (o «Bizco»), quien pelea puede responder una vez por combate. Devuelve true si quedó esperando la respuesta. */
+function pedirRespuesta(s: GameState, autor: number): boolean {
+  const c = s.combat!; const f = s.players[c.fighter];
+  if (c.respuesta) return false;
+  const ops: Option[] = [];
+  const vistos = new Set<string>();
+  for (const card of f.mano) {
+    if (card.kind === 'comida' && !vistos.has(card.nombre)) { vistos.add(card.nombre); ops.push({ id: `resp:${card.uid}`, label: `Responder con ${card.nombre}`, detail: card.tipo === 'licor' ? '+D8 a tu poder (si pierdes, te enguayabas)' : '+D8 a tu poder', img: card.img }); }
+  }
+  const lora = f.mano.find(x => x.kind === 'exag' && x.id === 'lora');
+  if (lora && Math.min(...c.dice) < 6) ops.push({ id: `lora:${lora.uid}`, label: exag('lora').nombre, detail: 'Tu dado más bajo pasa a 6' });
+  if (!ops.length) return false;
+  const poder = poderJugador(s, c), ataque = ataqueMito(s, c);
+  push(s, { kind: 'respuesta', player: c.fighter, title: `¡${nombreDe(s, autor)} te sabotea! ¿Respondes?`,
+    text: `Ahora tienes ${poder} contra ${ataque} de ${mito(c.mitoId).nombre}.`, img: `mitos/${c.mitoId}`,
+    options: [...ops, { id: 'pasar', label: 'No responder' }] });
+  return true;
+}
 function siguienteReaccion(s: GameState) {
   const c = s.combat!;
   while (c.reactQueue.length) {
@@ -495,7 +516,7 @@ function resolverCombate(s: GameState) {
   } else {
     c.result = 'pierde';
     log(s, `${p.nombre} pierde contra ${m.nombre} (${poder} contra ${ataque}).`, p.id);
-    if (c.food?.tipo === 'licor' && !(pasivaApoyo(p, 'genovevo') && !habilidadesBloqueadas(s))) { p.saltaPlaza = true; log(s, `${p.nombre} queda enguayabado.`, p.id); }
+    if ((c.food?.tipo === 'licor' || c.respuesta?.licor) && !(pasivaApoyo(p, 'genovevo') && !habilidadesBloqueadas(s))) { p.saltaPlaza = true; log(s, `${p.nombre} queda enguayabado.`, p.id); }
     preguntarCastigo(s, c.fighter, m.castigo, m.nombre);
     terminarCombate(s);
   }
@@ -1039,7 +1060,8 @@ function aplicarJugada(prev: GameState, a: Action): GameState {
       break;
     }
     case 'vender': {
-      if (s.phase !== 'campo') return prev;
+      // Materiales y herramientas se venden en el Campo; las cartas de la mano también en la Plaza
+      if (s.phase !== 'campo' && !(s.phase === 'plaza' && a.item.k === 'carta')) return prev;
       let v = 0; let que = '';
       if (a.item.k === 'mat') { if (p.mat[a.item.id] < 1) return prev; p.mat[a.item.id]--; v = valorVenta(s, p, { k: 'mat' }); que = MATERIALES[a.item.id].nombre; }
       else if (a.item.k === 'tool') { if (p.tools[a.item.id] < 1) return prev; p.tools[a.item.id]--; s.herramientasDescarte.push(a.item.id); v = valorVenta(s, p, { k: 'tool', id: a.item.id }); que = HERRAMIENTAS[a.item.id].nombre; }
@@ -1119,6 +1141,27 @@ function resolverEleccion(s: GameState, pnd: Pending, id: string) {
           s.morralDescarte.push(card);
           if (k === 'food' || k === 'perro') { c.sabotage = { by: p.id, d8: d(s, 8), con: nombreCarta(card) }; log(s, `${p.nombre} sabotea con ${nombreCarta(card)}: +${c.sabotage.d8} al mito.`, p.id); }
           if (k === 'bizco') { c.bizco = true; log(s, `${p.nombre} juega «${exag('bizco').nombre}»: ataque y recompensa dobles.`, p.id); }
+          // Quien pelea puede responder al sabotaje
+          if (pedirRespuesta(s, p.id)) break;
+        }
+      }
+      siguienteReaccion(s);
+      break;
+    }
+    case 'respuesta': {
+      const c = s.combat!;
+      if (id !== 'pasar') {
+        const [k, uidS] = id.split(':'); const card = take(Number(uidS), p.mano);
+        if (card) {
+          s.morralDescarte.push(card);
+          if (k === 'resp' && card.kind === 'comida') {
+            c.respuesta = { d8: d(s, 8), con: card.nombre, licor: card.tipo === 'licor' };
+            log(s, `${p.nombre} responde con ${card.nombre}: +${c.respuesta.d8} a su poder.`, p.id);
+          }
+          if (k === 'lora') {
+            const min = c.dice.indexOf(Math.min(...c.dice)); c.dice[min] = 6;
+            log(s, `${p.nombre} juega «Más cagao que parapeto de lora»: un dado pasa a 6.`, p.id);
+          }
         }
       }
       siguienteReaccion(s);
