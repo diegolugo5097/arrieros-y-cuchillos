@@ -1,5 +1,5 @@
 // Tablero de la mesa: lo que todos ven en su dispositivo mientras otro juega.
-// Los jugadores juegan desde su celular; esta pantalla solo observa.
+// Los jugadores juegan desde su dispositivo; esta pantalla solo observa.
 import { useEffect, useMemo, useRef, useState } from 'react';
 import QRCode from 'qrcode';
 import {
@@ -8,7 +8,7 @@ import {
 import { GameState, ataqueMito, poderJugador, dadosUsados, totalGolpe, cartasEnMano, pendiente, Phase, ordenDe } from '../game/engine';
 import { SalaInfo, Anuncio, SERVIDOR } from '../net/red';
 import { ControlSonido } from './Controles';
-import { Dados, Dado, Carta, propsMito } from './Cartas';
+import { Dados, Dado, Carta, Precio, propsMito, RequisitosConstruccion } from './Cartas';
 import { CapaEfectos, useEfectosMesa, EscenarioCtx } from './Efectos';
 import { Victoria } from './Modales';
 
@@ -174,9 +174,11 @@ export function MesaTablero({ s, sala, anuncio, cerrarAnuncio, onNueva, onSalir,
             </div>
             <div className="mesa-sub">Herramientas del Taller</div>
             <div className="mesa-herramientas">
-              {s.reveladas.map((t, i) => <div key={t + i}><img src={IMG(HERRAMIENTAS[t].img)} alt="" /><b>{HERRAMIENTAS[t].nombre}</b><span>{HERRAMIENTAS[t].precio} oro</span></div>)}
+              {s.reveladas.map((t, i) => <div key={t + i}><img src={IMG(HERRAMIENTAS[t].img)} alt="" /><b>{HERRAMIENTAS[t].nombre}</b><span><Precio n={HERRAMIENTAS[t].precio} /></span></div>)}
               {!s.reveladas.length && <span className="mesa-nota">No quedan herramientas</span>}
             </div>
+            <div className="mesa-sub">Para construir{yo !== undefined ? ' · lo tuyo en verde' : ''}</div>
+            <RequisitosConstruccion p={yo !== undefined ? s.players[yo] : undefined} compacto />
             <div className="mesa-sub">Apoyos en la Plaza</div>
             <div className="mesa-apoyos">
               {s.apoyosRevelados.map(id => <div key={id}><img src={IMG(apoyo(id).img)} alt="" /><div><b>{apoyo(id).nombre}</b><div>{apoyo(id).pasiva}</div></div></div>)}
@@ -281,13 +283,13 @@ export function MesaCombate({ s, restante }: { s: GameState; restante: number | 
   let estado: React.ReactNode;
   if (c.step === 'decidir') estado = <><b>{p.nombre}</b> decide{p.ia ? '' : ' en su dispositivo'}: ¿pelear o huir?</>;
   else if (c.step === 'tirada') estado = <><b>{p.nombre}</b> puede comer antes de confirmar.</>;
-  else if (c.step === 'rivales') estado = <><b>Rivales:</b> pueden sabotear desde su celular{restante !== null ? ` (${restante} s)` : ''}</>;
-  else if (c.step === 'victoria') estado = <><b>Rivales:</b> pueden quitarle la recompensa{restante !== null ? ` (${restante} s)` : ''}</>;
+  else if (c.step === 'rivales') estado = <><b>Rivales:</b> pueden sabotear desde su dispositivo{restante !== null ? ` (${restante} s)` : ''}</>;
+  else if (c.step === 'victoria') estado = <><b>Recompensa en espera:</b> {c.reward ? `${c.reward.oro} oro · ${c.reward.guacas} guaca${c.reward.guacas === 1 ? '' : 's'} · 1 material` : ''}. Los rivales con «Mató el tigre» o «Filo» deciden si se la quitan{restante !== null ? ` (${restante} s)` : ''}…</>;
   else estado = <b className={c.result === 'gana' || c.result === 'escapa' ? 'ok-txt' : 'err-txt'}>{c.result === 'gana' ? `¡${p.nombre} venció! +${rec.oro} oro, +${rec.guacas} guaca${rec.guacas === 1 ? '' : 's'}` : c.result === 'escapa' ? `${p.nombre} escapó` : `${p.nombre} perdió: ${m.texto.toLowerCase()}`}</b>;
   return (
     <aside className="mesa-combate" aria-label="Combate en curso">
       <div className="mesa-combate-tit">Combate en el Monte</div>
-      <div className={`mesa-combate-carta ${c.sabotage ? 'saboteada' : ''} ${c.step === 'hecho' ? 'res-' + c.result : ''}`}>
+      <div className={`mesa-combate-carta ${c.sabotajes.length ? 'saboteada' : ''} ${c.step === 'hecho' ? 'res-' + c.result : ''}`}>
         <Carta {...propsMito(c.mitoId, ataque, c.reward ?? undefined)} w={250} key={c.mitoId} />
         {c.step === 'hecho' && c.result === 'gana' && <div className="fx-cortes chico"><i /><i /><i /></div>}
       </div>
@@ -298,8 +300,9 @@ export function MesaCombate({ s, restante }: { s: GameState; restante: number | 
         {c.dice.length > 0 ? (
           <div className="mesa-dados"><Dados valores={c.dice} descartado={c.dice.length === 3 ? Math.min(...c.dice) : undefined} /><span>{p.nombre} sacó <b>{dadosUsados(c).join(' + ')}</b> + {totalGolpe(p)} de equipo{c.bonus ? ` ${c.bonus > 0 ? '+' : '−'} ${Math.abs(c.bonus)}` : ''}{c.food ? <> + <Dado v={c.food.d8} color="azul" /> {c.food.nombre}</> : null}</span></div>
         ) : <div className="mesa-dados"><span>{p.nombre} con +{totalGolpe(p)} de equipo</span></div>}
-        {c.sabotage && <div className="mesa-sabotaje"><Dado v={c.sabotage.d8} color="azul" /> sabotaje de {s.players[c.sabotage.by].nombre}{c.bizco ? ' · ataque doble' : ''}</div>}
-        {c.respuesta && <div className="mesa-sabotaje mesa-respuesta"><Dado v={c.respuesta.d8} color="azul" /> {s.players[c.fighter].nombre} responde con {c.respuesta.con}</div>}
+        {c.sabotajes.map((sb, i) => <div key={'s' + i} className="mesa-sabotaje"><Dado v={sb.d8} color="azul" /> sabotaje de {s.players[sb.by].nombre}</div>)}
+        {c.bizco && <div className="mesa-sabotaje">«Bizco»: ataque doble</div>}
+        {c.respuestas.map((r, i) => <div key={'r' + i} className="mesa-sabotaje mesa-respuesta">{r.d8 > 0 && <Dado v={r.d8} color="azul" />} {s.players[c.fighter].nombre} responde con {r.con}</div>)}
         <div className="mesa-combate-estado">{estado}</div>
       </div>
     </aside>
@@ -323,7 +326,7 @@ function MesaCronica({ s }: { s: GameState }) {
   );
 }
 
-/** Tirada inicial para el orden de turnos: cada jugador tira desde su celular. */
+/** Tirada inicial para el orden de turnos: cada jugador tira desde su dispositivo. */
 function MesaOrden({ s }: { s: GameState }) {
   const pnd = pendiente(s);
   return (

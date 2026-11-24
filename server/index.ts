@@ -93,7 +93,8 @@ function despues(sala: Sala) {
   if (sala.timerReaccion) { clearTimeout(sala.timerReaccion); sala.timerReaccion = null; }
   // Reacciones con tiempo límite para que nadie bloquee la partida
   const pnd = s.queue[0];
-  const conLimite = pnd && !s.players[pnd.player].ia && ['reaccion', 'respuesta', 'victoria-rival', 'otro-perro'].includes(pnd.kind);
+  // Sabotear y responder a un sabotaje no tienen reloj: cada jugador decide con calma
+  const conLimite = pnd && !s.players[pnd.player].ia && ['victoria-rival', 'otro-perro'].includes(pnd.kind);
   const antes = sala.limite;
   // Cada decisión tiene su propio reloj: si cambia la decisión (aunque sea del mismo jugador), se reinicia
   const clave = pnd ? `${pnd.kind}|${pnd.player}|${pnd.title}|${pnd.options.map(o => o.id).join(',')}` : '';

@@ -3,8 +3,9 @@
 import { CSSProperties, ReactNode } from 'react';
 import {
   IMG, mito, RECOMPENSA, TIER_FONDO, TIER_NOMBRE, exag, FOOD_NOMBRE, SLOT_NOMBRE, apoyo, ApoyoId, personaje, CharacterId, dicho, DichoId, Tier,
+  EDIFICIOS, ORDEN_EDIFICIOS, MATERIALES, MaterialId, HERRAMIENTAS,
 } from '../game/data';
-import { MorralCard } from '../game/engine';
+import { MorralCard, Player } from '../game/engine';
 
 export type TipoCarta = 'equipo' | 'comida' | 'licor' | 'exag' | 'apoyo' | 'personaje' | 'dicho' | Tier;
 
@@ -29,7 +30,7 @@ export function Carta({ tipo, titulo, linea, texto, img, fondo, fondoCubre, esq,
           {img && <img src={IMG(img)} alt="" draggable={false} />}
         </div>
         {linea && <div className="cj-linea"><span>{linea}</span></div>}
-        {!compacta && texto && <div className="cj-texto">{texto}</div>}
+        {!compacta && texto && <div className="cj-texto"><div className="cj-texto-in">{texto}</div></div>}
         {!compacta && pie && <div className="cj-pie">{pie}</div>}
       </div>
       {children && <div className="cj-extra">{children}</div>}
@@ -65,16 +66,61 @@ export function propsMito(id: string, ataque?: number, recompensa?: { oro: numbe
   };
 }
 
+const MOMENTO_PJ: Record<string, string> = { cualquiera: '· en tu turno', 'combate-antes': '· antes de pelear', 'al-vencer': '· al vencer un mito' };
+
+/** Texto de personajes y apoyos: pasiva arriba y las tres salidas del D6 abajo. */
+function TextoHabilidades({ pasiva, activa, etiquetaD6 }: { pasiva: string; activa: string[]; etiquetaD6: string }) {
+  // «Intuición Mítica: antes de robar…» → nombre de la pasiva destacado
+  const m = pasiva.match(/^([^:]{3,28}):\s*(.+)$/);
+  return (
+    <div className="cj-apoyo-txt">
+      <div className="cj-sec"><span className="cj-tag">Pasiva</span><p>{m ? <><b>{m[1]}:</b> {m[2]}</> : pasiva}</p></div>
+      <div className="cj-sec">
+        <span className="cj-tag d6">{etiquetaD6}</span>
+        <ul className="cj-d6">
+          <li className="bien"><b>6–5</b><span>{activa[0]}</span></li>
+          <li className="medio"><b>4–3</b><span>{activa[1]}</span></li>
+          <li className="mal"><b>2–1</b><span>{activa[2]}</span></li>
+        </ul>
+      </div>
+    </div>
+  );
+}
+
+/** Lo que pide cada edificio: guadua, madera y barro más las herramientas. Con «p», marca lo que el jugador ya tiene. */
+export function RequisitosConstruccion({ p, compacto, soloSiguiente }: { p?: Player; compacto?: boolean; soloSiguiente?: boolean }) {
+  const siguiente = p ? ORDEN_EDIFICIOS.find(b => !p.edificios[b]) : undefined;
+  return (
+    <div className={`req-tabla ${compacto ? 'compacto' : ''}`}>
+      {ORDEN_EDIFICIOS.filter(b => !soloSiguiente || b === siguiente).map(b => {
+        const hecho = !!p?.edificios[b];
+        const items: { img: string; nombre: string; ok: boolean }[] = [
+          ...(['G', 'M', 'B'] as MaterialId[]).map(k => ({ img: MATERIALES[k].img, nombre: MATERIALES[k].nombre, ok: !!p && p.mat[k] > 0 })),
+          ...EDIFICIOS[b].herramientas.map(t => ({ img: HERRAMIENTAS[t].img, nombre: HERRAMIENTAS[t].nombre, ok: !!p && p.tools[t] > 0 })),
+        ];
+        return (
+          <div key={b} className={`req-fila ${hecho ? 'hecho' : ''} ${b === siguiente ? 'req-sig' : ''}`}>
+            <div className="req-edif"><img src={IMG(EDIFICIOS[b].img)} alt="" /><b>{EDIFICIOS[b].nombre}</b>{hecho && <em>Construida</em>}{b === siguiente && <em className="sig">Siguiente</em>}</div>
+            <div className="req-items">
+              {items.map((it, i) => <span key={i} className={`req-item ${p ? (it.ok ? 'ok' : 'falta') : ''}`} title={it.nombre}><img src={IMG(it.img)} alt={it.nombre} />{!compacto && <small>{it.nombre}</small>}</span>)}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export function propsApoyo(id: ApoyoId): CartaProps {
   const a = apoyo(id);
   return { tipo: 'apoyo', titulo: a.nombre, linea: 'Personaje de apoyo', img: a.img, fondo: 'escenarios/zona-plaza', fondoCubre: true, esq: [<Badge v="3" titulo="Contratar: 3 oro" />, <Badge v="3" titulo="Contratar: 3 oro" />],
-    texto: <><b>Pasiva:</b> {a.pasiva}<br /><b>D6:</b> 6–5 {a.activa[0]} · 4–3 {a.activa[1]}</>, pie: <span>Apoyo</span> };
+    texto: <TextoHabilidades pasiva={a.pasiva} activa={a.activa} etiquetaD6="Habilidad · lanza D6" />, pie: <span>Apoyo</span> };
 }
 
 export function propsPersonaje(id: CharacterId): CartaProps {
   const c = personaje(id);
   return { tipo: 'personaje', titulo: c.nombre, linea: c.rol, img: c.img, fondo: 'escenarios/zona-campo', fondoCubre: true, esq: [<Badge v="★" />, <Badge v="★" />],
-    texto: c.pasiva, pie: <span>Personaje</span> };
+    texto: <TextoHabilidades pasiva={c.pasiva} activa={c.activa} etiquetaD6={`Habilidad · D6 ${MOMENTO_PJ[c.momento]}`} />, pie: <span>Personaje</span> };
 }
 
 export function propsDicho(id: DichoId): CartaProps {
@@ -113,4 +159,9 @@ export function Dado({ v, color = 'rojo', tachado, grande }: { v: number; color?
       {Array.from({ length: 9 }, (_, i) => <i key={i} className={PUNTOS[v]?.includes(i) ? 'p' : ''} />)}
     </div>
   );
+}
+
+/** Precio con la moneda de oro al lado: «4 🪙». */
+export function Precio({ n, signo = '' }: { n: number; signo?: string }) {
+  return <span className="precio">{signo}{n}<img src={IMG('objetos/oro')} alt=" oro" /></span>;
 }

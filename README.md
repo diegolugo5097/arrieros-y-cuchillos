@@ -59,8 +59,8 @@ Las cartas jugadas cruzan volando hasta el mapa o el combate, los mitos aparecen
 
 **Cuando te toca jugar o intervenir, la pantalla cambia sola a tus controles:**
 - Tu turno: pestañas **Mano**, **Mi turno** (acciones de la zona y botón para avanzar) y **Pueblo**, con un botón para **Ver la mesa**.
-- Reacciones (sabotear, «Mató el tigre…»): una cuenta regresiva de 15 segundos.
-- **Responder a un sabotaje:** si un rival potencia al mito mientras peleas, te toca responder (15 s): una comida o licor de tu mano te suma 1 D8, o el «Parapeto de lora» pone tu dado más bajo en 6. Una respuesta por combate; la IA también responde.
+- Reacciones: sabotear y responder a un sabotaje no tienen límite de tiempo; «Mató el tigre…» y «Filo» (cuando un rival vence) tienen una cuenta regresiva de 15 segundos.
+- **Sabotajes y respuestas:** todos los rivales que tengan cartas pueden sabotear, uno tras otro (cada uno una vez por combate); sus D8 se suman al ataque del mito. A cada sabotaje puedes responder, sin límite de tiempo, con una comida o licor de tu mano (+1 D8) o con el «Parapeto de lora» (tu dado más bajo pasa a 6). La IA también sabotea y responde.
 - Combate: en dos columnas, con el mito a un lado y tus opciones al otro; si tienes comida o licor, aparece **Seguir sin potenciador** para pelear sin usarlos.
 
 Al terminar, la pantalla vuelve sola a la mesa.
@@ -122,10 +122,12 @@ El botón de sonido permite apagar o ajustar la música y los efectos por separa
 - Todos empiezan con 8 guacas (cartas del mazo de Guacas), sin oro ni materiales. El límite de mano es 10 (12 con el Carriel).
 - **Guacas:** son las cartas del mazo de Guacas: equipo, comida y exageraciones paisas. Robas 1 en cada Plaza, y al vencer un mito recibes las guacas que indica (1 a 3 cartas a tu mano). También las dan algunos dichos, apoyos y eventos. Los edificios no piden guacas, solo materiales y herramientas.
 - En la pestaña **Mano** ves todas tus guacas; al tocar una se ve completa en grande, con su acción.
+- **Para construir:** la mesa muestra lo que pide cada edificio (guadua, madera, barro y herramientas), con lo tuyo en verde. En el Taller ves lo que pide tu siguiente edificio y en tu **Pueblo** la tabla completa y la carta de tu personaje.
+- **Cartas de personaje y de apoyo:** muestran la pasiva y la habilidad del D6 con sus tres resultados (6–5, 4–3 y 2–1).
 - **Vender guacas:** el equipo y la comida de la mano se venden en la Plaza o en el Campo. El equipo vale la mitad de su golpe (mínimo 1 oro); el alimento 1, la carne y el licor 2. En la Plaza, una carta de equipo muestra **Equipar** y **Vender**.
 - Avisos en pantalla: si otro jugador te quita cartas, te dice cuáles y por qué; al recibir guacas, te dice cuáles llegaron a tu mano.
 - Al equiparte algo en una ranura ocupada (arma, prenda o montura), el juego pregunta si quieres reemplazarlo y muestra la comparación de golpe; lo anterior se descarta.
-- Al vencer un mito ganas oro, guacas (cartas) y 1 material. Un rival puede anularte el oro y las guacas con «Mató el tigre» o quedarse con el oro con «Filo»; la pantalla de resultado te lo dice.
+- Al vencer un mito ganas oro, guacas (cartas) y 1 material. Se cobra cuando los rivales con «Mató el tigre» o «Filo» terminan de decidir; mientras tanto el combate muestra «Recompensa en espera». Al cobrar, la mesa muestra las monedas y guacas volando a tu pueblo y tu dispositivo te avisa lo que recibiste. Un rival puede anularte el oro y las guacas con «Mató el tigre» o quedarse con el oro con «Filo»; la pantalla de resultado te lo dice.
 - El botón **Cómo jugar** tiene un resumen; el reglamento completo es el documento consolidado.
 
 ## Estructura

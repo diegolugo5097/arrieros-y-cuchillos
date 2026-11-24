@@ -90,7 +90,7 @@ export function Reglas({ onCerrar }: { onCerrar: () => void }) {
         <li><b>Campo:</b> cosechas 1 oro + 1 por edificio sano, y compras o vendes en el Fondo del Pueblo.</li>
       </ol>
       <h3>Combate</h3>
-      <p>Poder = 2D6 + equipo + bonos + comida (D8 opcional, una por combate). Ganas si igualas o superas el ataque. Un rival puede sabotear gastando una comida (+D8 al mito); si te sabotean, puedes responder una vez con otra comida o licor (+D8 a tu poder) o con el «Parapeto de lora». Si ganas: oro, guacas y 1 material.</p>
+      <p>Poder = 2D6 + equipo + bonos + comida (D8 opcional, una por combate). Ganas si igualas o superas el ataque. Cada rival puede sabotear una vez gastando una comida (+D8 al mito cada uno, se suman); a cada sabotaje puedes responder con otra comida o licor (+D8 a tu poder) o con el «Parapeto de lora». Si ganas: oro, guacas y 1 material.</p>
       <table className="tabla-reglas">
         <thead><tr><th>Nivel</th><th>Ataque</th><th>Recompensa</th></tr></thead>
         <tbody>

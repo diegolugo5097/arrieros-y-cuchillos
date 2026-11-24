@@ -10,7 +10,7 @@ import {
   probVictoria, nombreCarta,
 } from '../game/engine';
 import { SalaInfo, Mensaje } from '../net/red';
-import { ApoyoCarta, Carta, Dado, Dados, DichoMini, propsMorral } from './Cartas';
+import { ApoyoCarta, Carta, Dado, Dados, DichoMini, PersonajeCarta, Precio, propsMorral, RequisitosConstruccion } from './Cartas';
 import { Chat, ControlSonido } from './Controles';
 import { Intercambio, Victoria } from './Modales';
 import { useCuentaRegresiva } from './Mesa';
@@ -106,6 +106,9 @@ function useAvisosMano(s: GameState, me: Player, propia: React.MutableRefObject<
       const razon = [...nuevos].reverse().find(t => (t.includes(me.nombre) || /^Todos/.test(t)) && /roba|descarta|pasan|pierde|quita|da /.test(t));
       texto = `Se fue de tu mano: ${salen.map(nombreCarta).join(', ')}${entran.length ? ` · Recibiste: ${entran.map(nombreCarta).join(', ')}` : ''}${razon ? ` — ${razon}` : ''}`; tipo = 'pierde';
     } else if (entran.length) texto = `${entran.length > 1 ? `+${entran.length} guacas` : 'Nueva guaca'} a tu mano: ${entran.map(nombreCarta).join(', ')}`;
+    // Recompensa de un combate: oro y material (las guacas ya van arriba)
+    const cobro = nuevos.filter(t => t.startsWith(me.nombre + ' ')).map(t => t.match(/ gana (\d+) oro\.$/)?.[1] ? `+${t.match(/ gana (\d+) oro\.$/)![1]} oro` : t.match(/ recoge 1 (.+)\.$/) ? `+1 ${t.match(/ recoge 1 (.+)\.$/)![1]}` : '').filter(Boolean);
+    if (cobro.length) { texto = `Cobraste: ${cobro.join(' · ')}${texto && tipo === 'gana' ? ` · ${texto}` : ''}`; tipo = 'gana'; }
     if (!texto) return;
     setAviso({ id: Date.now(), texto, tipo });
     const t = setTimeout(() => setAviso(null), 4000);
@@ -191,7 +194,7 @@ function CartaGrande({ s, me, card, miTurno, dispatch, onCerrar }: { s: GameStat
           <button className={`cel-accion ${acc.tono}`} disabled={!acc.accion || lanzando} onClick={() => (actual && acc.accion?.t === 'equipar' ? setConfirmar(true) : lanzar())}>
             {actual && acc.accion?.t === 'equipar' ? `Equipar (reemplaza ${actual.nombre})` : acc.label}
           </button>
-          {venta && <button className="cel-accion claro" disabled={lanzando} onClick={() => lanzar(venta)}>Vender (+{valorVenta(s, me, { k: 'carta', c: card })} oro)</button>}
+          {venta && <button className="cel-accion claro" disabled={lanzando} onClick={() => lanzar(venta)}>Vender <Precio signo="+" n={valorVenta(s, me, { k: 'carta', c: card })} /></button>}
           <button className="cel-accion claro sec" onClick={onCerrar}>Cerrar</button>
         </>}
       </div>
@@ -247,7 +250,7 @@ function CelZona({ s, me, dispatch, onVer }: { s: GameState; me: Player; dispatc
       <button disabled={s.evento === 'cierre' || s.turn.intercambios >= maxIntercambios(s, me)} onClick={() => setHoja('trato')}>Intercambiar</button>
       {pj.momento === 'cualquiera' && <button className="dorado" disabled={!mainDisponible(s)} onClick={() => dispatch({ t: 'habilidad' })}>Habilidad D6</button>}
       {me.apoyo && <button className="dorado" disabled={!apoyoDisponible(s)} onClick={() => dispatch({ t: 'habilidadApoyo' })}>Apoyo D6</button>}
-      {s.evento === 'errantes' && <button disabled={s.turn.guacaErrantes || me.oro < 5} onClick={() => dispatch({ t: 'guacaErrantes' })}>Guaca por 5 oro</button>}
+      {s.evento === 'errantes' && <button disabled={s.turn.guacaErrantes || me.oro < 5} onClick={() => dispatch({ t: 'guacaErrantes' })}>Guaca por <Precio n={5} /></button>}
     </>;
   } else if (s.phase === 'monte') {
     const last = s.lastMonte;
@@ -260,7 +263,7 @@ function CelZona({ s, me, dispatch, onVer }: { s: GameState; me: Player; dispatc
     const deMazo = s.evento === 'aprendizaje' ? (['puntilla', 'martillo', 'serrucho'] as ToolId[]).filter(t => s.herramientas.includes(t) && !s.reveladas.includes(t)) : [];
     const danadas = ORDEN_EDIFICIOS.filter(b => me.edificios[b] === 'danada');
     botones = <>
-      {[...new Set([...s.reveladas, ...deMazo])].map(t => <button key={t} className="con-img" disabled={s.turn.compras >= comprasMax || me.oro < precioHerramienta(s, me, t)} onClick={() => dispatch({ t: 'comprarHerramienta', tool: t })}><img src={IMG(HERRAMIENTAS[t].img)} alt="" />{HERRAMIENTAS[t].nombre} · {precioHerramienta(s, me, t)}</button>)}
+      {[...new Set([...s.reveladas, ...deMazo])].map(t => <button key={t} className="con-img" disabled={s.turn.compras >= comprasMax || me.oro < precioHerramienta(s, me, t)} onClick={() => dispatch({ t: 'comprarHerramienta', tool: t })}><img src={IMG(HERRAMIENTAS[t].img)} alt="" />{HERRAMIENTAS[t].nombre} <Precio n={precioHerramienta(s, me, t)} /></button>)}
       {sig && <button className="dorado ancho" disabled={!puedeConstruir(s)} onClick={() => dispatch({ t: 'construir' })}>Construir {EDIFICIOS[sig].nombre}</button>}
       {danadas.map(b => <button key={b} disabled={s.evento !== 'reparacion' && me.mat.G + me.mat.M + me.mat.B < 1} onClick={() => dispatch({ t: 'reparar', b })}>Reparar {EDIFICIOS[b].nombre}</button>)}
       {me.guardados.includes('tarde') && !s.turn.tallerExtra && <button onClick={() => dispatch({ t: 'usarTarde' })}>Taller doble</button>}
@@ -268,9 +271,9 @@ function CelZona({ s, me, dispatch, onVer }: { s: GameState; me: Player; dispatc
   } else if (s.phase === 'campo') {
     const precio = precioMaterial(s, me);
     botones = <>
-      {(['G', 'M', 'B'] as MaterialId[]).map(k => <button key={k} className="con-img" disabled={me.oro < precio} onClick={() => dispatch({ t: 'comprarMaterial', id: k })}><img src={IMG(MATERIALES[k].img)} alt="" />Comprar · {precio}</button>)}
-      {(['G', 'M', 'B'] as MaterialId[]).filter(k => me.mat[k] > 0).map(k => <button key={'v' + k} className="con-img claro" onClick={() => dispatch({ t: 'vender', item: { k: 'mat', id: k } })}><img src={IMG(MATERIALES[k].img)} alt="" />Vender +{valorVenta(s, me, { k: 'mat' })}</button>)}
-      {(['puntilla', 'martillo', 'serrucho'] as ToolId[]).filter(t => me.tools[t] > 0).map(t => <button key={t} className="con-img claro" onClick={() => dispatch({ t: 'vender', item: { k: 'tool', id: t } })}><img src={IMG(HERRAMIENTAS[t].img)} alt="" />Vender +{valorVenta(s, me, { k: 'tool', id: t })}</button>)}
+      {(['G', 'M', 'B'] as MaterialId[]).map(k => <button key={k} className="con-img" disabled={me.oro < precio} onClick={() => dispatch({ t: 'comprarMaterial', id: k })}><img src={IMG(MATERIALES[k].img)} alt="" />Comprar <Precio n={precio} /></button>)}
+      {(['G', 'M', 'B'] as MaterialId[]).filter(k => me.mat[k] > 0).map(k => <button key={'v' + k} className="con-img claro" onClick={() => dispatch({ t: 'vender', item: { k: 'mat', id: k } })}><img src={IMG(MATERIALES[k].img)} alt="" />Vender <Precio signo="+" n={valorVenta(s, me, { k: 'mat' })} /></button>)}
+      {(['puntilla', 'martillo', 'serrucho'] as ToolId[]).filter(t => me.tools[t] > 0).map(t => <button key={t} className="con-img claro" onClick={() => dispatch({ t: 'vender', item: { k: 'tool', id: t } })}><img src={IMG(HERRAMIENTAS[t].img)} alt="" />Vender <Precio signo="+" n={valorVenta(s, me, { k: 'tool', id: t })} /></button>)}
     </>;
   }
   const sig = ORDEN_EDIFICIOS.find(b => !me.edificios[b]);
@@ -280,12 +283,7 @@ function CelZona({ s, me, dispatch, onVer }: { s: GameState; me: Player; dispatc
     <section className="cel-zona" style={{ backgroundImage: `url(${IMG(zona?.img ?? 'escenarios/mapa')})` }}>
       <div className="cel-zona-velo" />
       <div className="cel-zona-tit">{zona?.nombre}</div>
-      {req && sig && (
-        <div className="cel-req">
-          <span className={req.matsOk ? 'ok' : ''}>G·M·B</span>
-          {EDIFICIOS[sig].herramientas.map(t => <span key={t} className={me.tools[t] > 0 ? 'ok' : ''}>{HERRAMIENTAS[t].nombre}</span>)}
-        </div>
-      )}
+      {req && sig && <div className="cel-req-panel"><RequisitosConstruccion p={me} soloSiguiente /></div>}
       {s.phase === 'campo' && <div className="cel-req"><span className="ok">Cosechaste al llegar</span></div>}
       <div className="cel-zona-botones">{botones}</div>
       {hoja === 'apoyos' && (
@@ -295,7 +293,7 @@ function CelZona({ s, me, dispatch, onVer }: { s: GameState; me: Player; dispatc
             <div className="cel-apoyos">
               {s.apoyosRevelados.map(id => (
                 <ApoyoCarta key={id} id={id} w={160}>
-                  <button className="btn chico" disabled={me.oro < precioApoyo(s)} onClick={() => { dispatch({ t: 'contratar', id }); setHoja(null); }}>Contratar ({precioApoyo(s)} oro)</button>
+                  <button className="btn chico" disabled={me.oro < precioApoyo(s)} onClick={() => { dispatch({ t: 'contratar', id }); setHoja(null); }}>Contratar · <Precio n={precioApoyo(s)} /></button>
                 </ApoyoCarta>
               ))}
             </div>
@@ -342,14 +340,14 @@ function CelEspera({ s, me, sala, convertirIA, compacta }: { s: GameState; me: P
 }
 
 // ---------------- Mano en abanico ----------------
-function accionCarta(s: GameState, me: Player, card: MorralCard, miTurno: boolean): { label: string; accion?: Action; tono: 'dorado' | 'rojo' | 'claro' } {
+function accionCarta(s: GameState, me: Player, card: MorralCard, miTurno: boolean): { label: React.ReactNode; accion?: Action; tono: 'dorado' | 'rojo' | 'claro' } {
   if (card.kind === 'equipo') {
     if (miTurno && s.phase === 'plaza') return { label: `Equipar (+${card.golpe})`, accion: { t: 'equipar', uid: card.uid }, tono: 'dorado' };
-    if (miTurno && s.phase === 'campo') return { label: `Vender (+${valorVenta(s, me, { k: 'carta', c: card })} oro)`, accion: { t: 'vender', item: { k: 'carta', uid: card.uid } }, tono: 'claro' };
+    if (miTurno && s.phase === 'campo') return { label: <>Vender <Precio signo="+" n={valorVenta(s, me, { k: 'carta', c: card })} /></>, accion: { t: 'vender', item: { k: 'carta', uid: card.uid } }, tono: 'claro' };
     return { label: 'Se equipa o se vende en la Plaza', tono: 'claro' };
   }
   if (card.kind === 'comida') {
-    if (miTurno && (s.phase === 'campo' || s.phase === 'plaza')) return { label: `Vender (+${valorVenta(s, me, { k: 'carta', c: card })} oro)`, accion: { t: 'vender', item: { k: 'carta', uid: card.uid } }, tono: 'claro' };
+    if (miTurno && (s.phase === 'campo' || s.phase === 'plaza')) return { label: <>Vender <Precio signo="+" n={valorVenta(s, me, { k: 'carta', c: card })} /></>, accion: { t: 'vender', item: { k: 'carta', uid: card.uid } }, tono: 'claro' };
     return { label: 'Guárdala para el combate', tono: 'claro' };
   }
   if (miTurno && exagJugable(s, card.uid)) return { label: 'Jugar en la mesa', accion: { t: 'exag', uid: card.uid }, tono: 'rojo' };
@@ -387,8 +385,10 @@ function CelPueblo({ s, me, dispatch, miTurno, chat, enviarChat, onSalir }: { s:
       <div className="cel-slots">
         {ORDEN_EDIFICIOS.map(b => <div key={b} className={`cel-slot edif ${me.edificios[b] ?? 'no'}`}><img src={IMG(me.edificios[b] === 'danada' ? EDIFICIOS[b].imgDanada : EDIFICIOS[b].img)} alt="" /><span>{EDIFICIOS[b].nombre}{me.edificios[b] === 'danada' ? ' (dañada)' : ''}</span></div>)}
       </div>
-      <h3>{personaje(me.personaje).nombre}</h3>
-      <p className="cel-nota">{personaje(me.personaje).pasiva}</p>
+      <h3>Para construir</h3>
+      <RequisitosConstruccion p={me} />
+      <h3>Tu personaje</h3>
+      <div className="cel-pj-carta"><PersonajeCarta id={me.personaje} w={210} /></div>
       {me.apoyo && (
         <>
           <h3>Apoyo</h3>
@@ -432,7 +432,7 @@ function CelCombate({ s, me, dispatch, onCerrar }: { s: GameState; me: Player; d
   return (
     <div className="cel cel-combate" style={{ backgroundImage: `url(${IMG('escenarios/zona-monte')})` }}>
       <header className="cel-combate-cab"><span>¡A pelear!</span><b style={{ background: me.color }}>{me.nombre} · El Monte</b></header>
-      <section className={`cel-combate-arte ${c.step === 'hecho' ? 'fx-' + c.result : ''} ${c.sabotage ? 'saboteada' : ''}`} key={`${c.mitoId}-${c.step === 'hecho'}`}>
+      <section className={`cel-combate-arte ${c.step === 'hecho' ? 'fx-' + c.result : ''} ${c.sabotajes.length ? 'saboteada' : ''}`} key={`${c.mitoId}-${c.step === 'hecho'}`}>
         <img className="fondo" src={IMG(TIER_FONDO[m.tier])} alt="" />
         <img className="mito" src={IMG(`mitos/${m.id}`)} alt={m.nombre} />
         <div className="mesa-ataque chico">{ataque}</div>
@@ -443,11 +443,12 @@ function CelCombate({ s, me, dispatch, onCerrar }: { s: GameState; me: Player; d
       <section className="cel-combate-panel">
         <div className="mesa-marcador chico"><div className="verde">{poder ?? '?'}</div><span>contra</span><div className="rojo">{ataque}</div></div>
         {c.dice.length > 0 && <div className="cel-dados" key={c.dice.join("-")}><Dados valores={c.dice} descartado={c.dice.length === 3 ? Math.min(...c.dice) : undefined} /><span>{dadosUsados(c).join(' + ')} + {totalGolpe(me)} de equipo{c.bonus ? ` ${c.bonus > 0 ? '+' : '−'} ${Math.abs(c.bonus)}` : ''}{c.food ? <> + <Dado v={c.food.d8} color="azul" /></> : null}</span></div>}
-        {c.sabotage && <div className="cel-nota"><Dado v={c.sabotage.d8} color="azul" /> sabotaje de {s.players[c.sabotage.by].nombre}</div>}
-        {c.respuesta && <div className="cel-nota cel-respuesta"><Dado v={c.respuesta.d8} color="azul" /> tu respuesta con {c.respuesta.con}</div>}
+        {c.sabotajes.map((sb, i) => <div key={'s' + i} className="cel-nota"><Dado v={sb.d8} color="azul" /> sabotaje de {s.players[sb.by].nombre}</div>)}
+        {c.respuestas.map((r, i) => <div key={'r' + i} className="cel-nota cel-respuesta">{r.d8 > 0 && <Dado v={r.d8} color="azul" />} tu respuesta con {r.con}</div>)}
         {c.step === 'decidir' && <div className="cel-nota">Probabilidad de ganar: <b>{Math.round(prob * 100)}%</b>{comidas.length > 0 && <> · con comida <b>{Math.round(probC * 100)}%</b></>}</div>}
         {c.step === 'tirada' && <div className="cel-nota">{poder! >= ataque ? 'Vas ganando.' : `Te faltan ${ataque - poder!}.`} Cuando confirmes, tus rivales tendrán unos segundos para sabotear.</div>}
-        {(c.step === 'rivales' || c.step === 'victoria') && <div className="cel-nota">Tus rivales deciden en sus celulares…</div>}
+        {c.step === 'rivales' && <div className="cel-nota">Tus rivales deciden si sabotean…</div>}
+        {c.step === 'victoria' && c.reward && <div className="cel-nota cel-espera-cobro"><b>Recompensa en espera:</b> {c.reward.oro} oro · {c.reward.guacas} guaca{c.reward.guacas === 1 ? '' : 's'} · 1 material. Los rivales con «Mató el tigre» o «Filo» deciden si te la quitan…</div>}
         {c.step === 'hecho' && <div className={`cel-resultado ${c.result === 'gana' || c.result === 'escapa' ? 'ok-txt' : 'err-txt'}`}>{c.result === 'gana' ? textoRecompensa(s, c, rec) : c.result === 'escapa' ? 'Escapaste sin castigo' : `Perdiste: ${m.texto}`}</div>}
       </section>
       {c.step === 'tirada' && !c.food && comidas.length > 0 && (

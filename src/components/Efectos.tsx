@@ -11,9 +11,10 @@ type Efecto =
   | { id: number; tipo: 'dados'; dados: number[]; texto: string }
   | { id: number; tipo: 'resultado'; r: 'gana' | 'pierde' | 'escapa'; texto: string }
   | { id: number; tipo: 'sabotaje'; de: number; d8: number; texto: string; color: string }
-  | { id: number; tipo: 'construir'; b: BuildingId; texto: string; color: string };
+  | { id: number; tipo: 'construir'; b: BuildingId; texto: string; color: string }
+  | { id: number; tipo: 'cobro'; de: number; texto: string; color: string; guacas: number };
 
-const DURACION: Record<Efecto['tipo'], number> = { carta: 2000, mito: 1900, dados: 1500, resultado: 2100, sabotaje: 1700, construir: 2000 };
+const DURACION: Record<Efecto['tipo'], number> = { carta: 2000, mito: 1900, dados: 1500, resultado: 2100, sabotaje: 1700, construir: 2000, cobro: 2200 };
 let sig = 1;
 
 /**
@@ -51,8 +52,13 @@ export function useEfectosMesa(s: GameState) {
     const out: Efecto[] = [];
     const color = (p?: number) => (p !== undefined ? s.players[p].color : '#e0a526');
     const nombre = (p?: number) => (p !== undefined ? s.players[p].nombre : '');
+    // Cobro de la recompensa tras vencer un mito (oro, guacas y material juntos en un solo efecto)
+    const cobro: Record<number, string[]> = {}; const guacasDe: Record<number, number> = {};
     for (const l of nuevas) {
       let m: RegExpMatchArray | null;
+      if (l.p !== undefined && (m = l.t.match(/ gana (\d+) oro\.$/))) { (cobro[l.p] ??= []).push(`+${m[1]} oro`); continue; }
+      if (l.p !== undefined && (m = l.t.match(/ recibe (\d+) guacas?\.$/))) { (cobro[l.p] ??= []).push(`+${m[1]} guaca${m[1] === '1' ? '' : 's'}`); guacasDe[l.p] = Number(m[1]); continue; }
+      if (l.p !== undefined && cobro[l.p] && (m = l.t.match(/ recoge 1 (.+)\.$/))) { cobro[l.p].push(`+1 ${m[1]}`); continue; }
       if ((m = l.t.match(/ juega «(.+?)»/))) {
         const c = cartaPorNombre(m[1]); if (c) out.push({ id: sig++, tipo: 'carta', de: l.p ?? 0, carta: c, texto: `${nombre(l.p)} lanza una exageración`, color: color(l.p) });
       } else if ((m = l.t.match(/ sabotea con (.+?): \+(\d+)/))) {
@@ -79,6 +85,10 @@ export function useEfectosMesa(s: GameState) {
         const b = (Object.keys(EDIFICIOS) as BuildingId[]).find(k => EDIFICIOS[k].nombre === m![1]);
         if (b) out.push({ id: sig++, tipo: 'construir', b, texto: `¡${nombre(l.p)} construye ${EDIFICIOS[b].nombre}!`, color: color(l.p) });
       }
+    }
+    for (const k of Object.keys(cobro)) {
+      const p = Number(k);
+      out.push({ id: sig++, tipo: 'cobro', de: p, texto: `${nombre(p)} cobra: ${cobro[p].join(' · ')}`, color: color(p), guacas: guacasDe[p] ?? 0 });
     }
     if (out.length) setCola(c => [...c, ...out].slice(-6));
   }, [s]);
@@ -152,6 +162,19 @@ export function CapaEfectos({ s, efecto, rapido }: { s: GameState; efecto: Retur
         <div className="fx-capa" key={efecto.id}>
           <div className="fx-d8" style={st}><Dado v={efecto.d8} color="azul" grande /></div>
           <div className="fx-rotulo azul" style={{ borderColor: efecto.color }}>{efecto.texto}</div>
+        </div>
+      );
+    }
+    case 'cobro': {
+      // Las monedas y las guacas vuelan del combate al pueblo de quien cobra
+      const o = origenJugador(efecto.de, n, esc.ex, esc.ey);
+      return (
+        <div className="fx-capa" key={efecto.id}>
+          {Array.from({ length: 9 }, (_, i) => (
+            <img key={i} className="fx-cobro" src={IMG(i < efecto.guacas * 2 ? 'cartas/dorso-morral' : 'objetos/oro')} alt=""
+              style={{ ['--x0' as string]: `${PANEL_COMBATE.x + (i % 3 - 1) * 40}px`, ['--y0' as string]: `${PANEL_COMBATE.y + (i % 2) * 30}px`, ['--x1' as string]: `${o.x + (i % 3 - 1) * 50}px`, ['--y1' as string]: `${o.y}px`, animationDelay: `${i * 90}ms` }} />
+          ))}
+          <div className="fx-rotulo" style={{ borderColor: efecto.color }}>{efecto.texto}</div>
         </div>
       );
     }

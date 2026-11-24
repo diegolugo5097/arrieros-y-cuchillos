@@ -35,9 +35,12 @@ export interface Combat {
   fighter: number; mitoId: string; source: 'monte' | 'ocasion'; tier: string;
   step: 'decidir' | 'tirada' | 'rivales' | 'victoria' | 'hecho';
   dice: number[]; bonus: number; food: { d8: number; tipo: FoodKind; nombre: string } | null;
-  sabotage: { by: number; d8: number; con: string } | null; bizco: boolean; noFlee: boolean;
-  /** Respuesta de quien pelea a un sabotaje: +D8 con una comida o licor. */
-  respuesta?: { d8: number; con: string; licor: boolean } | null;
+  /** Sabotajes de los rivales (cada rival puede sabotear una vez por combate): +D8 al mito cada uno. */
+  sabotajes: { by: number; d8: number; con: string }[]; bizco: boolean; noFlee: boolean;
+  /** Respuestas de quien pelea (una por cada sabotaje o «Bizco»): +D8 a su poder cada una. */
+  respuestas: { d8: number; con: string; licor: boolean }[];
+  /** Ataques de rivales en este combate (sabotajes + «Bizco»), para saber cuántas respuestas tiene. */
+  hostiles: number;
   reactQueue: number[]; winQueue: number[]; result: 'gana' | 'pierde' | 'huye' | 'escapa' | null;
   reward: { oro: number; guacas: number } | null; wilsonUsado: boolean;
 }
@@ -392,12 +395,14 @@ export function puedeConstruir(s: GameState) {
 }
 
 // ---------------- Combate ----------------
+export const totalSabotaje = (c: Combat) => (c.sabotajes ?? []).reduce((t, x) => t + x.d8, 0);
+export const totalRespuesta = (c: Combat) => (c.respuestas ?? []).reduce((t, x) => t + x.d8, 0);
 export function ataqueMito(s: GameState, c: Combat) {
   let a = mito(c.mitoId).ataque;
   if (s.evento === 'zorros') a += 2;
   if (s.evento === 'madremonte') a += 3;
   if (c.bizco) a *= 2;
-  return a + (c.sabotage?.d8 ?? 0);
+  return a + totalSabotaje(c);
 }
 export function dadosUsados(c: Combat) {
   if (c.dice.length === 3) { const s = [...c.dice].sort((a, b) => b - a); return s.slice(0, 2); }
@@ -412,7 +417,7 @@ export function bonoComida(s: GameState, p: Player, c: Combat) {
 }
 export function poderJugador(s: GameState, c: Combat) {
   const p = s.players[c.fighter];
-  return dadosUsados(c).reduce((a, b) => a + b, 0) + totalGolpe(p) + c.bonus + bonoComida(s, p, c) + (c.respuesta?.d8 ?? 0);
+  return dadosUsados(c).reduce((a, b) => a + b, 0) + totalGolpe(p) + c.bonus + bonoComida(s, p, c) + totalRespuesta(c);
 }
 /** Probabilidad aproximada de vencer (para IA y ayuda en pantalla). */
 export function probVictoria(s: GameState, p: Player, ataque: number, extraBonus = 0, conComida = false): number {
@@ -430,7 +435,7 @@ export function probVictoria(s: GameState, p: Player, ataque: number, extraBonus
 
 function iniciarCombate(s: GameState, fighter: number, mitoId: string, source: 'monte' | 'ocasion', noFlee = false) {
   const m = mito(mitoId);
-  s.combat = { fighter, mitoId, source, tier: m.tier, step: 'decidir', dice: [], bonus: 0, food: null, sabotage: null, bizco: false,
+  s.combat = { fighter, mitoId, source, tier: m.tier, step: 'decidir', dice: [], bonus: 0, food: null, sabotajes: [], respuestas: [], hostiles: 0, bizco: false,
     noFlee: noFlee || source === 'ocasion', reactQueue: [], winQueue: [], result: null, reward: null, wilsonUsado: false };
   log(s, `${nombreDe(s, fighter)} enfrenta a ${m.nombre} (ataque ${m.ataque}).`, fighter);
 }
@@ -452,7 +457,8 @@ function abrirReacciones(s: GameState) {
 function opcionesReaccion(s: GameState, i: number): Option[] {
   const c = s.combat!; const r = s.players[i];
   const ops: Option[] = [];
-  if (!c.sabotage) {
+  // Cada rival puede sabotear una vez por combate (aunque otro ya lo haya hecho)
+  if (!c.sabotajes.some(x => x.by === i)) {
     const vistos = new Set<string>();
     for (const card of r.mano) {
       if (card.kind === 'comida' && !vistos.has(card.tipo)) { vistos.add(card.tipo); ops.push({ id: `food:${card.uid}`, label: `Sabotear con ${card.nombre}`, detail: '+D8 al ataque del mito', img: card.img }); }
@@ -462,10 +468,10 @@ function opcionesReaccion(s: GameState, i: number): Option[] {
   if (!c.bizco) { const b = r.mano.find(x => x.kind === 'exag' && x.id === 'bizco'); if (b) ops.push({ id: `bizco:${b.uid}`, label: exag('bizco').nombre, detail: 'Duplica ataque y recompensa' }); }
   return ops;
 }
-/** Tras un sabotaje (o «Bizco»), quien pelea puede responder una vez por combate. Devuelve true si quedó esperando la respuesta. */
+/** Tras cada sabotaje (o «Bizco»), quien pelea puede responder una vez. Devuelve true si quedó esperando la respuesta. */
 function pedirRespuesta(s: GameState, autor: number): boolean {
   const c = s.combat!; const f = s.players[c.fighter];
-  if (c.respuesta) return false;
+  if (c.respuestas.length >= c.hostiles) return false;
   const ops: Option[] = [];
   const vistos = new Set<string>();
   for (const card of f.mano) {
@@ -516,7 +522,7 @@ function resolverCombate(s: GameState) {
   } else {
     c.result = 'pierde';
     log(s, `${p.nombre} pierde contra ${m.nombre} (${poder} contra ${ataque}).`, p.id);
-    if ((c.food?.tipo === 'licor' || c.respuesta?.licor) && !(pasivaApoyo(p, 'genovevo') && !habilidadesBloqueadas(s))) { p.saltaPlaza = true; log(s, `${p.nombre} queda enguayabado.`, p.id); }
+    if ((c.food?.tipo === 'licor' || c.respuestas.some(r => r.licor)) && !(pasivaApoyo(p, 'genovevo') && !habilidadesBloqueadas(s))) { p.saltaPlaza = true; log(s, `${p.nombre} queda enguayabado.`, p.id); }
     preguntarCastigo(s, c.fighter, m.castigo, m.nombre);
     terminarCombate(s);
   }
@@ -1139,8 +1145,8 @@ function resolverEleccion(s: GameState, pnd: Pending, id: string) {
         const [k, uidS] = id.split(':'); const card = take(Number(uidS), p.mano);
         if (card) {
           s.morralDescarte.push(card);
-          if (k === 'food' || k === 'perro') { c.sabotage = { by: p.id, d8: d(s, 8), con: nombreCarta(card) }; log(s, `${p.nombre} sabotea con ${nombreCarta(card)}: +${c.sabotage.d8} al mito.`, p.id); }
-          if (k === 'bizco') { c.bizco = true; log(s, `${p.nombre} juega «${exag('bizco').nombre}»: ataque y recompensa dobles.`, p.id); }
+          if (k === 'food' || k === 'perro') { const sb = { by: p.id, d8: d(s, 8), con: nombreCarta(card) }; c.sabotajes.push(sb); c.hostiles++; log(s, `${p.nombre} sabotea con ${nombreCarta(card)}: +${sb.d8} al mito.`, p.id); }
+          if (k === 'bizco') { c.bizco = true; c.hostiles++; log(s, `${p.nombre} juega «${exag('bizco').nombre}»: ataque y recompensa dobles.`, p.id); }
           // Quien pelea puede responder al sabotaje
           if (pedirRespuesta(s, p.id)) break;
         }
@@ -1155,11 +1161,12 @@ function resolverEleccion(s: GameState, pnd: Pending, id: string) {
         if (card) {
           s.morralDescarte.push(card);
           if (k === 'resp' && card.kind === 'comida') {
-            c.respuesta = { d8: d(s, 8), con: card.nombre, licor: card.tipo === 'licor' };
-            log(s, `${p.nombre} responde con ${card.nombre}: +${c.respuesta.d8} a su poder.`, p.id);
+            const r = { d8: d(s, 8), con: card.nombre, licor: card.tipo === 'licor' }; c.respuestas.push(r);
+            log(s, `${p.nombre} responde con ${card.nombre}: +${r.d8} a su poder.`, p.id);
           }
           if (k === 'lora') {
             const min = c.dice.indexOf(Math.min(...c.dice)); c.dice[min] = 6;
+            c.respuestas.push({ d8: 0, con: '«Parapeto de lora»', licor: false });
             log(s, `${p.nombre} juega «Más cagao que parapeto de lora»: un dado pasa a 6.`, p.id);
           }
         }
