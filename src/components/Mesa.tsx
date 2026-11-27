@@ -5,12 +5,13 @@ import QRCode from 'qrcode';
 import {
   IMG, ZONAS, personaje, apoyo, evento, HERRAMIENTAS, MATERIALES, EDIFICIOS, ORDEN_EDIFICIOS, MaterialId, mito, TIER_FONDO, TIER_NOMBRE, RECOMPENSA,
 } from '../game/data';
-import { GameState, ataqueMito, poderJugador, dadosUsados, totalGolpe, cartasEnMano, pendiente, Phase, ordenDe } from '../game/engine';
-import { SalaInfo, Anuncio, SERVIDOR } from '../net/red';
+import { Action, GameState, ataqueMito, poderJugador, dadosUsados, totalGolpe, cartasEnMano, pendiente, Phase, ordenDe } from '../game/engine';
+import { SalaInfo, Anuncio, SERVIDOR, Mensaje } from '../net/red';
 import { ControlSonido } from './Controles';
 import { Dados, Dado, Carta, Precio, propsMito, RequisitosConstruccion } from './Cartas';
 import { CapaEfectos, useEfectosMesa, EscenarioCtx } from './Efectos';
 import { Victoria } from './Modales';
+import { VistaEscena } from './Escena';
 
 /** Escenario de 1920×1080 escalado para llenar cualquier pantalla. */
 /**
@@ -120,143 +121,27 @@ export function MesaSala({ sala, onSalir }: { sala: SalaInfo; onSalir: () => voi
 }
 
 // ---------------- Tablero ----------------
-const POS_ZONA: Record<string, { left?: string; right?: string; top: string; alinear: string; trans?: string }> = {
-  monte: { left: '50%', top: '9%', alinear: 'center', trans: 'translateX(-50%)' },
-  plaza: { left: '50%', top: '45%', alinear: 'center', trans: 'translateX(-50%)' },
-  taller: { left: '6%', top: '50%', alinear: 'flex-start' },
-  campo: { right: '6%', top: '50%', alinear: 'flex-end' },
-};
-const NUM_ZONA: Record<string, number> = { plaza: 1, monte: 2, taller: 3, campo: 4 };
-
-export function MesaTablero({ s, sala, anuncio, cerrarAnuncio, onNueva, onSalir, enCelular, posiciones, yo, reservaDerecha }: { s: GameState; sala: SalaInfo; anuncio: Anuncio | null; cerrarAnuncio: () => void; onNueva: () => void; onSalir: () => void; enCelular?: boolean; posiciones?: Record<number, Phase>; yo?: number; reservaDerecha?: number }) {
-  const p = s.players[s.current];
+export function MesaTablero({ s, sala, anuncio, cerrarAnuncio, onNueva, onSalir, enCelular, posiciones, yo, reservaDerecha, enviar, chat, enviarChat, convertirIA }: { enviar?: (a: Action) => void; chat?: Mensaje[]; enviarChat?: (t: string) => void; convertirIA?: (i: number) => void; s: GameState; sala: SalaInfo; anuncio: Anuncio | null; cerrarAnuncio: () => void; onNueva: () => void; onSalir: () => void; enCelular?: boolean; posiciones?: Record<number, Phase>; yo?: number; reservaDerecha?: number }) {
   const pnd = pendiente(s);
   // Posición de cada ficha en el mapa: el jugador de turno está en su zona; los demás, donde quedaron
   const propias = usePosiciones(s);
   const pos = posiciones ?? propias;
-  const zonaDe = (i: number) => pos[i] ?? 'plaza';
   const restante = useCuentaRegresiva(sala.limite?.hasta);
   const fx = useEfectosMesa(s);
   // Los dichos y eventos se quedan en pantalla según lo largo del texto (entre 9 y 16 s) para que alcancen a leerse
   const durAnuncio = anuncio ? Math.min(16000, Math.max(9000, 5000 + (anuncio.titulo.length + anuncio.texto.length) * 70)) : 0;
   useEffect(() => { if (!anuncio) return; const id = setTimeout(cerrarAnuncio, durAnuncio); return () => clearTimeout(id); }, [anuncio, cerrarAnuncio, durAnuncio]);
-  const ultimo = useMemo(() => [...s.log].reverse().find(l => !l.t.startsWith('—') && !l.t.startsWith('=')), [s.log]);
-  const fases = ['plaza', 'monte', 'taller', 'campo'];
-  const idx = fases.indexOf(s.phase);
-  const proxEvento = 3 - ((s.round - 1) % 3);
-  const c = s.combat;
-  const verCombate = !!c && s.phase === 'monte';
 
   return (
     <Escenario girable={enCelular} reserva={reservaDerecha}>
       <div className={`mesa ${fx.temblor ? (fx.temblor % 2 ? 'sacude-a' : 'sacude-b') : ''}`}>
-        <header className="mesa-barra">
-          <div className="mesa-barra-logo">Arrieros <span>y</span> Cuchillos</div>
-          <div className="mesa-ronda">Ronda {s.round}</div>
-          <nav className="mesa-fases" aria-label="Zonas del turno">
-            {ZONAS.map((z, i) => <div key={z.id} className={`mesa-fase ${i === idx ? 'actual' : i > idx ? 'futura' : ''}`}><span>{i + 1}</span>{z.nombre.replace(' y Construcción', '').replace(' de Cultivo', '').replace(' Principal', '')}</div>)}
-          </nav>
-          <div className="mesa-evento">
-            {s.evento ? <><span className="mesa-evento-et">Evento</span><b>{evento(s.evento).nombre}</b><span>· {evento(s.evento).texto}</span></>
-              : <><span className="mesa-evento-et">Evento</span><span>Próximo en {proxEvento} ronda{proxEvento === 1 ? '' : 's'}</span></>}
-            {s.gato && <span className="chip">Habilidades anuladas</span>}
-          </div>
-          <div className="mesa-unete"><span>{yo !== undefined ? <>Juegas como<br /><b className="mesa-yo" style={{ color: s.players[yo].color }}>{s.players[yo].nombre}</b></> : <>Código de<br />la partida</>}</span><b>{sala.codigo}</b></div>
-          {!enCelular && <ControlSonido />}
-          <button className={`btn chico ${enCelular ? 'mesa-cerrar' : 'sec'}`} onClick={onSalir}>{enCelular ? '✕ Volver' : 'Salir'}</button>
-        </header>
+        <VistaEscena s={s} sala={sala} yo={yo} posiciones={pos} efecto={fx.actual} onSalir={onSalir}
+          enviar={enviar} chat={chat} enviarChat={enviarChat} convertirIA={convertirIA}
+          sonido={!enCelular ? <ControlSonido /> : undefined} enCelular={enCelular}
+          restante={pnd && sala.limite && sala.limite.player === pnd.player ? restante : null} />
 
-        <main className="mesa-centro">
-          <aside className="mesa-mercado" aria-label="Mazos y mercado">
-            <div className="mesa-mazos">
-              <div><img src={IMG('cartas/dorso-monte')} alt="Mazo del Monte" /><span>Monte · {s.monteCount ?? s.monte.length}</span></div>
-              <div><img src={IMG('cartas/dorso-morral')} alt="Mazo de Guacas" /><span>Guacas · {s.morralCount ?? s.morral.length}</span></div>
-            </div>
-            <div className="mesa-sub">Herramientas del Taller</div>
-            <div className="mesa-herramientas">
-              {s.reveladas.map((t, i) => <div key={t + i}><img src={IMG(HERRAMIENTAS[t].img)} alt="" /><b>{HERRAMIENTAS[t].nombre}</b><span><Precio n={HERRAMIENTAS[t].precio} /></span></div>)}
-              {!s.reveladas.length && <span className="mesa-nota">No quedan herramientas</span>}
-            </div>
-            <div className="mesa-sub">Para construir{yo !== undefined ? ' · lo tuyo en verde' : ''}</div>
-            <RequisitosConstruccion p={yo !== undefined ? s.players[yo] : undefined} compacto />
-            <div className="mesa-sub">Apoyos en la Plaza</div>
-            <div className="mesa-apoyos">
-              {s.apoyosRevelados.map(id => <div key={id}><img src={IMG(apoyo(id).img)} alt="" /><div><b>{apoyo(id).nombre}</b><div>{apoyo(id).pasiva}</div></div></div>)}
-            </div>
-          </aside>
-
-          <section className="mesa-mapa" aria-label="Mapa del pueblo">
-            <img className="mesa-mapa-img" src={IMG('escenarios/mapa')} alt="" />
-            <svg aria-hidden="true" viewBox="0 0 1000 600" preserveAspectRatio="none" className="mesa-sendero">
-              <path d="M500 330 C 420 230, 470 150, 500 110 M500 110 C 560 160, 620 260, 790 330 M790 330 C 700 420, 560 460, 500 330 M500 330 C 380 380, 300 340, 210 330" />
-            </svg>
-            {fases.map(z => {
-              const pz = POS_ZONA[z];
-              const aqui = s.players.filter(q => zonaDe(q.id) === z);
-              const activa = s.phase === z;
-              return (
-                <div key={z} className="mesa-zona" style={{ left: pz.left, right: pz.right, top: pz.top, transform: pz.trans, alignItems: pz.alinear }}>
-                  <div className={`mesa-zona-etiqueta ${activa ? (z === 'monte' ? 'monte' : 'activa') : ''}`}><span>{NUM_ZONA[z]}</span>{ZONAS.find(x => x.id === z)!.nombre}</div>
-                  <div className="mesa-fichas">
-                    {aqui.map(q => (
-                      <div key={q.id} className={`mesa-ficha ${q.id === s.current ? 'actual' : ''}`} style={{ borderColor: q.color }} title={q.nombre}>
-                        <img src={IMG(personaje(q.personaje).img)} alt={`Ficha de ${q.nombre}`} />
-                      </div>
-                    ))}
-                    {aqui.some(q => q.id === s.current) && <div className="mesa-ficha-texto">{p.nombre} {z === 'monte' ? (c && c.step !== 'hecho' ? 'pelea aquí' : 'explora') : 'está aquí'}</div>}
-                  </div>
-                </div>
-              );
-            })}
-            {pnd && <div className="mesa-decide" style={{ borderColor: s.players[pnd.player].color }}><img src={IMG(personaje(s.players[pnd.player].personaje).img)} alt="" /><div><b>{s.players[pnd.player].nombre} decide{s.players[pnd.player].ia ? '' : ' en su dispositivo'}</b><div>{pnd.title}</div></div>{sala.limite && sala.limite.player === pnd.player && restante !== null && <span className="mesa-reloj">{restante}</span>}</div>}
-            {ultimo && <div className="mesa-ultimo"><b>Último:</b> {ultimo.t}</div>}
-          </section>
-
-          {verCombate ? <MesaCombate s={s} restante={sala.limite ? restante : null} /> : <MesaCronica s={s} />}
-        </main>
-
-        <section className="mesa-pueblos" aria-label="Pueblos de los jugadores" style={{ gridTemplateColumns: `repeat(${s.players.length}, minmax(0, 1fr))` }}>
-          {s.players.map(q => {
-            const n = cartasEnMano(q);
-            const estado = q.id === s.current ? 'Jugando' : pnd?.player === q.id ? 'Decidiendo' : q.ia ? 'IA' : q.conectado === false ? 'Desconectado' : 'Esperando';
-            return (
-              <article key={q.id} className={`mesa-pueblo ${q.id === s.current ? 'actual' : ''} ${q.id === yo ? 'yo' : ''}`} style={{ borderColor: q.color }}>
-                <div className="mesa-pueblo-cab">
-                  <img src={IMG(personaje(q.personaje).img)} alt="" />
-                  {s.orden && <b className="mesa-orden-num" style={{ background: q.color }} title="Orden de turno">{ordenDe(s).indexOf(q.id) + 1}º</b>}
-                  <div className="mesa-pueblo-nom"><div style={{ color: q.color }}>{q.nombre}</div><span>{personaje(q.personaje).nombre} · {personaje(q.personaje).rol}</span></div>
-                  <span className="mesa-estado" style={{ background: estado === 'Desconectado' ? '#7a6a5a' : q.color }}>{estado}</span>
-                </div>
-                <div className="mesa-pueblo-rec">
-                  <span><img src={IMG('objetos/oro')} alt="Oro" />{q.oro}</span>
-                  {(['G', 'M', 'B'] as MaterialId[]).map(k => <span key={k}><img src={IMG(MATERIALES[k].img)} alt={MATERIALES[k].nombre} />{q.mat[k]}</span>)}
-                  <span><img src={IMG('objetos/machete')} alt="Golpe de equipo" />+{totalGolpe(q)}</span>
-                  {(['puntilla', 'martillo', 'serrucho'] as const).map(t => q.tools[t] > 0 && <span key={t}><img src={IMG(HERRAMIENTAS[t].img)} alt={HERRAMIENTAS[t].nombre} />{q.tools[t]}</span>)}
-                </div>
-                <div className="mesa-pueblo-pie">
-                  <div className="mesa-edificios">
-                    {ORDEN_EDIFICIOS.map(b => <img key={b} className={q.edificios[b] ?? 'no'} src={IMG(q.edificios[b] === 'danada' ? EDIFICIOS[b].imgDanada : EDIFICIOS[b].img)} alt={EDIFICIOS[b].nombre} title={EDIFICIOS[b].nombre} />)}
-                  </div>
-                  <div className="mesa-mano">
-                    <div>{Array.from({ length: Math.min(n, 6) }, (_, i) => <img key={i} src={IMG('cartas/dorso-morral')} alt="" />)}</div>
-                    <span>{n} carta{n === 1 ? '' : 's'}</span>
-                  </div>
-                </div>
-                {(q.apoyo || q.saltaPlaza || q.saltaMonte || q.pierdeTurno) && (
-                  <div className="mesa-pueblo-extra">
-                    {q.apoyo && <span className="chip">{apoyo(q.apoyo).nombre}</span>}
-                    {q.saltaPlaza && <span className="chip">Enguayabado</span>}
-                    {q.saltaMonte && <span className="chip">Sin Monte</span>}
-                    {q.pierdeTurno && <span className="chip">Pierde turno</span>}
-                  </div>
-                )}
-              </article>
-            );
-          })}
-        </section>
-
-        {s.ordenTiradas && !s.orden && <MesaOrden s={s} />}
-        <CapaEfectos s={s} efecto={fx.actual} rapido={fx.rapido} />
+        {s.ordenTiradas && !s.orden && <MesaOrden s={s} yo={yo} enviar={enviar} />}
+        <CapaEfectos s={s} efecto={fx.actual} rapido={fx.rapido} yo={yo} />
         {anuncio && (
           <div className="mesa-anuncio" onClick={cerrarAnuncio}>
             <div className="mesa-anuncio-caja">
@@ -309,26 +194,17 @@ export function MesaCombate({ s, restante }: { s: GameState; restante: number | 
   );
 }
 
-function MesaCronica({ s }: { s: GameState }) {
-  const p = s.players[s.current];
-  const lineas = s.log.slice(-9).reverse();
-  return (
-    <aside className="mesa-cronica" aria-label="Crónica del turno">
-      <div className="mesa-combate-tit">Turno de {p.nombre}</div>
-      <div className="mesa-cronica-arte" style={{ backgroundImage: `url(${IMG(ZONAS.find(z => z.id === s.phase)?.img ?? 'escenarios/mapa')})` }}>
-        <img src={IMG(personaje(p.personaje).img)} alt="" />
-        <div className="mesa-cronica-zona">{ZONAS.find(z => z.id === s.phase)?.nombre}</div>
-      </div>
-      <div className="mesa-cronica-lista">
-        {lineas.map((l, i) => <div key={l.n ?? i} className={l.t.startsWith('—') || l.t.startsWith('=') ? 'sep' : ''} style={{ borderLeftColor: l.p !== undefined ? s.players[l.p].color : 'transparent' }}>{l.t}</div>)}
-      </div>
-    </aside>
-  );
-}
-
 /** Tirada inicial para el orden de turnos: cada jugador tira desde su dispositivo. */
-function MesaOrden({ s }: { s: GameState }) {
+function MesaOrden({ s, yo, enviar }: { s: GameState; yo?: number; enviar?: (a: Action) => void }) {
   const pnd = pendiente(s);
+  const [rodando, setRodando] = useState(false);
+  const meToca = pnd?.kind === 'orden' && pnd.player === yo && !!enviar;
+  const tirar = () => {
+    if (rodando || !enviar) return;
+    setRodando(true);
+    try { navigator.vibrate?.([30, 40, 30]); } catch { /* */ }
+    setTimeout(() => { enviar({ t: 'choose', id: 'tirar' }); setRodando(false); }, 600);
+  };
   return (
     <div className="mesa-orden">
       <div className="mesa-orden-caja">
@@ -345,7 +221,9 @@ function MesaOrden({ s }: { s: GameState }) {
                 <div className="mesa-orden-dados">
                   {t.length ? t.map((v, k) => <Dado key={k} v={v} grande={k === t.length - 1} tachado={k < t.length - 1} />) : <span className="mesa-orden-q">?</span>}
                 </div>
-                <span>{tirando ? (q.ia ? 'Tirando…' : 'Tirando en su dispositivo') : t.length ? 'Listo' : 'Esperando'}</span>
+                {tirando && q.id === yo && meToca
+                  ? <button className="mesa-orden-tirar" disabled={rodando} onClick={tirar}>{rodando ? 'Rodando…' : t.length ? '¡Empate! Tira otra vez' : 'Tirar el D6'}</button>
+                  : <span>{tirando ? (q.ia ? 'Tirando…' : 'Tirando en su dispositivo') : t.length ? 'Listo' : 'Esperando'}</span>}
               </div>
             );
           })}

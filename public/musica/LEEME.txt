@@ -1,0 +1,11 @@
+Música del juego
+================
+Pon aquí tus canciones en MP3 con estos nombres exactos (en minúsculas):
+
+  pueblo.mp3   -> Plaza, Taller y Campo
+  monte.mp3    -> El Monte (explorar)
+  combate.mp3  -> Combate contra un mito
+
+Suenan en bucle y cambian con un fundido suave según la zona.
+Si falta alguna, ese tema se toca con la música sintetizada del juego.
+El volumen se ajusta con el botón de sonido de la mesa.

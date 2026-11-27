@@ -1,12 +1,11 @@
 // Vista de juego en cada dispositivo (PC o celular en horizontal).
-// Todos ven la mesa mientras otro juega; cada uno pasa a sus controles solo cuando le toca jugar o intervenir.
-import { useEffect, useRef, useState } from 'react';
-import { GameState, pendiente } from '../game/engine';
+// Todos juegan desde la misma mesa: cuando te toca, tus acciones aparecen en la escena.
+import { useEffect, useState } from 'react';
+import { GameState } from '../game/engine';
 import { IMG } from '../game/data';
 import { Action } from '../game/engine';
 import { SalaInfo, Mensaje, Anuncio } from '../net/red';
 import { MesaTablero, usePosiciones } from './Mesa';
-import { ControlCelular } from './Celular';
 
 interface Props {
   s: GameState; yo: number; sala: SalaInfo; dispatch: (a: Action) => void; chat: Mensaje[]; enviarChat: (t: string) => void;
@@ -14,74 +13,16 @@ interface Props {
 }
 
 export function Juego(props: Props) {
-  const { s, yo, sala, anuncio, cerrarAnuncio, onSalir, onNueva } = props;
-  const pnd = pendiente(s);
-  // Si hay una decisión pendiente, interviene solo quien debe decidir; si no, el jugador de turno
-  const toca = s.winner === null && (pnd ? pnd.player === yo : s.current === yo);
-  const [ver, setVer] = useState<'auto' | 'mesa' | 'propio'>('auto');
-  const claveDecision = pnd && pnd.player === yo ? `${pnd.kind}:${pnd.title}:${s.paso ?? 0}` : '';
-  useEffect(() => { setVer('auto'); }, [toca]);
-  useEffect(() => { if (claveDecision) setVer('auto'); }, [claveDecision]);
+  const { s, yo, sala, anuncio, cerrarAnuncio, onSalir, onNueva, dispatch, chat, enviarChat, convertirIA } = props;
   const posiciones = usePosiciones(s);
-  const mostrarMesa = s.winner !== null || (ver === 'auto' ? !toca : ver === 'mesa');
-  const me = s.players[yo];
-
+  // Toda la partida se juega en la misma mesa: tus acciones, decisiones y cartas aparecen en la escena
   return (
     <>
-      {mostrarMesa
-        ? <MesaTablero s={s} sala={sala} anuncio={anuncio} cerrarAnuncio={cerrarAnuncio} onNueva={onNueva} onSalir={onSalir} posiciones={posiciones} yo={yo} />
-        : <ControlCelular {...props} espectador={!toca} onVerMesa={() => setVer('mesa')} />}
-      {mostrarMesa && s.winner === null && (toca
-        ? <button className="mesa-volver" onClick={() => setVer('auto')}>{pnd?.player === yo ? 'Te toca decidir' : 'Volver a mi turno'} →</button>
-        : <BotonMano n={me.mano.length} onAbrir={() => setVer('propio')} />)}
-      {!mostrarMesa && anuncio && <AnuncioFlotante a={anuncio} onCerrar={cerrarAnuncio} compacto={pnd?.player === yo} />}
+      <MesaTablero s={s} sala={sala} anuncio={anuncio} cerrarAnuncio={cerrarAnuncio} onNueva={onNueva} onSalir={onSalir} posiciones={posiciones} yo={yo}
+        enviar={dispatch} chat={chat} enviarChat={enviarChat} convertirIA={convertirIA} />
       <BotonPantallaCompleta />
       <GirarAviso />
     </>
-  );
-}
-
-/**
- * Botón flotante de la mano: aparece al tocar la pantalla y se oculta solo tras unos segundos sin tocar,
- * para que la mesa se vea completa. Un toque en el botón abre tus cartas.
- */
-function BotonMano({ n, onAbrir }: { n: number; onAbrir: () => void }) {
-  const [visible, setVisible] = useState(true);
-  const prev = useRef(n);
-  useEffect(() => {
-    let id = window.setTimeout(() => setVisible(false), 3500);
-    const mostrar = () => { setVisible(true); clearTimeout(id); id = window.setTimeout(() => setVisible(false), 3500); };
-    window.addEventListener('pointerdown', mostrar, true);
-    window.addEventListener('pointermove', mostrar, true);
-    return () => { clearTimeout(id); window.removeEventListener('pointerdown', mostrar, true); window.removeEventListener('pointermove', mostrar, true); };
-  }, []);
-  // Si cambia tu número de cartas, se asoma un momento para avisarte
-  useEffect(() => { if (prev.current !== n) { prev.current = n; setVisible(true); const id = setTimeout(() => setVisible(false), 3000); return () => clearTimeout(id); } }, [n]);
-  return (
-    <button className={`mesa-mano-flotante ${visible ? '' : 'oculto'}`} onClick={onAbrir} aria-label={`Mis cartas: ${n}`} title="Mis cartas">
-      <img src={IMG('cartas/dorso-morral')} alt="" />
-      <b>{n}</b>
-    </button>
-  );
-}
-
-/** Dichos y eventos cuando el jugador está en sus controles (en la mesa los muestra el tablero). */
-function AnuncioFlotante({ a, onCerrar, compacto }: { a: Anuncio; onCerrar: () => void; compacto?: boolean }) {
-  const dur = Math.min(16000, Math.max(9000, 5000 + (a.titulo.length + a.texto.length) * 70));
-  useEffect(() => { const id = setTimeout(onCerrar, dur); return () => clearTimeout(id); }, [a, onCerrar, dur]);
-  return (
-    // Si estás decidiendo (con reloj), el anuncio no tapa la pantalla: queda como aviso pequeño
-    <div className={`cel-anuncio ${compacto ? 'compacto' : ''}`} onClick={onCerrar} role={compacto ? 'status' : 'dialog'} aria-label={a.titulo}>
-      <div className="cel-anuncio-caja">
-        {a.img && <div className="cel-anuncio-img" style={{ backgroundImage: `url(${IMG(a.img)})` }} />}
-        <div>
-          <h2>{a.titulo}</h2>
-          <p>{a.texto}</p>
-          <div className="mesa-anuncio-tiempo"><i style={{ animationDuration: `${dur}ms` }} /></div>
-          <small>Toca para cerrar</small>
-        </div>
-      </div>
-    </div>
   );
 }
 

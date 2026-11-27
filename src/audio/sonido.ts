@@ -1,6 +1,7 @@
 // Sonidos sintetizados con Web Audio (sin archivos externos).
 // Efectos: dados, cartas, monedas, construcción, combate, victoria…
-// Música: ver musica.ts (tres temas: pueblo, monte y combate).
+// Música: si existen public/musica/pueblo.mp3, monte.mp3 y combate.mp3 se usan esas canciones (en bucle y con fundido);
+// si falta alguna, ese tema se toca con la música sintetizada de musica.ts.
 import { Musica, Tema } from './musica';
 
 type Ambiente = Tema | null;
@@ -14,6 +15,9 @@ class MotorSonido {
   private ambiente: Ambiente = null;
   private timer: number | null = null;
   private siguienteTiempo = 0; private paso = 0; private musicaMotor: Musica | null = null;
+  /** Canciones en archivo: el buffer decodificado, «no» si no existe, o la promesa mientras carga. */
+  private canciones = new Map<Tema, AudioBuffer | 'no' | Promise<AudioBuffer | 'no'>>();
+  private sonando: { src: AudioBufferSourceNode; g: GainNode } | null = null;
 
   constructor() {
     try { const c = JSON.parse(localStorage.getItem(CONF) ?? '{}'); Object.assign(this, c); } catch { /* sin config */ }
@@ -135,10 +139,45 @@ class MotorSonido {
   }
 
   // ---------------- Música ----------------
+  /** Carga public/musica/<tema>.mp3 (una sola vez). Si no existe o no se puede leer, queda la música sintetizada. */
+  private cancion(tema: Tema): Promise<AudioBuffer | 'no'> {
+    const ya = this.canciones.get(tema);
+    if (ya) return Promise.resolve(ya);
+    const url = `${import.meta.env?.BASE_URL ?? './'}musica/${tema}.mp3`;
+    const p = fetch(url)
+      .then(r => (r.ok && !(r.headers.get('content-type') ?? '').includes('text/html') ? r.arrayBuffer() : Promise.reject()))
+      .then(b => this.ctx!.decodeAudioData(b))
+      .catch(() => 'no' as const)
+      .then(v => { this.canciones.set(tema, v); return v; });
+    this.canciones.set(tema, p);
+    return p;
+  }
+  /** Apaga la canción en archivo que esté sonando, con un fundido corto. */
+  private soltarCancion(seg = 1.2) {
+    if (!this.sonando || !this.ctx) return;
+    const { src, g } = this.sonando; const t = this.ctx.currentTime;
+    g.gain.cancelScheduledValues(t); g.gain.setValueAtTime(g.gain.value, t); g.gain.linearRampToValueAtTime(0, t + seg);
+    try { src.stop(t + seg + 0.05); } catch { /* */ }
+    this.sonando = null;
+  }
   setAmbiente(a: Ambiente) {
     if (a === this.ambiente) return;
     this.ambiente = a;
     if (!this.ctx) return;
+    this.soltarCancion();
+    if (a) {
+      // Primero se intenta la canción en archivo; mientras carga (o si no hay), suena la sintetizada
+      this.cancion(a).then(buf => {
+        if (buf === 'no' || this.ambiente !== a || !this.ctx || this.sonando) return;
+        if (this.timer !== null) { clearInterval(this.timer); this.timer = null; }
+        const src = this.ctx.createBufferSource(); src.buffer = buf; src.loop = true;
+        const g = this.ctx.createGain(); const t = this.ctx.currentTime;
+        g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(1, t + 1.2);
+        src.connect(g); g.connect(this.musica); src.start(t);
+        this.sonando = { src, g };
+      });
+      if (this.canciones.get(a) instanceof AudioBuffer) return;
+    }
     this.musicaMotor ??= new Musica(this.ctx, this.musica, this.reverb);
     // Cada tema arranca desde su primer compás
     this.paso = 0; this.siguienteTiempo = this.ctx.currentTime + 0.15;
