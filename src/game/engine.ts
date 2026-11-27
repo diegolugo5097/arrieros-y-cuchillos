@@ -19,6 +19,8 @@ export type Bundle = Partial<Record<MaterialId | ToolId | 'oro', number>>;
 export interface Player {
   id: number; nombre: string; personaje: CharacterId; ia: boolean; color: string;
   oro: number; guacas: number;
+  /** Ronda en la que Claudia usó su remedio gratis (una vez por ronda). */
+  remedioRonda?: number;
   mat: Record<MaterialId, number>; tools: Record<ToolId, number>;
   mano: MorralCard[]; equipo: Partial<Record<Slot, MorralCard & { kind: 'equipo' }>>;
   edificios: Partial<Record<BuildingId, BuildState>>;
@@ -46,7 +48,7 @@ export interface Combat {
 }
 
 export interface TurnFlags {
-  intercambios: number; mainUsada: boolean; apoyoUsada: boolean; compras: number; construcciones: number; tallerExtra: boolean;
+  intercambios: number; mainUsada: boolean; apoyoUsada: boolean; apoyoExtra?: boolean; compras: number; construcciones: number; tallerExtra: boolean;
   monteHecho: boolean; vendioPrimera: boolean; claudia: 'doble' | 'mas1' | null; guacaErrantes: boolean; exagJugadas: number;
 }
 
@@ -355,17 +357,22 @@ export function precioHerramienta(s: GameState, p: Player, t: ToolId) {
   if (s.evento === 'rebaja') v = Math.max(2, v - 2);
   return Math.max(1, v);
 }
-export function precioMaterial(s: GameState, p: Player) {
+export function precioMaterial(s: GameState, p: Player, k?: MaterialId) {
   if (s.evento === 'lluvia') return 1;
+  if (k === 'G' && p.personaje === 'mercedes' && !habilidadesBloqueadas(s)) return 1;
   if (pasivaApoyo(p, 'polonio') && !habilidadesBloqueadas(s)) return 1;
   return 2;
 }
-export function precioApoyo(s: GameState) { return s.evento === 'chequeo' ? 1 : 3; }
+export function precioApoyo(s: GameState, p?: Player) {
+  const base = s.evento === 'chequeo' ? 1 : 3;
+  return p && p.personaje === 'herminia' && !habilidadesBloqueadas(s) ? Math.max(0, base - 1) : base;
+}
 export function maxCompras(s: GameState) { return (s.evento === 'reforma' ? 2 : 1); }
 export function maxIntercambios(s: GameState, p: Player) { return p.personaje === 'jose-maria' && !habilidadesBloqueadas(s) ? 2 : 1; }
 export function valorVenta(s: GameState, p: Player, item: { k: 'mat' } | { k: 'tool'; id: ToolId } | { k: 'carta'; c: MorralCard }): number {
   let v = 0;
-  const clem = p.personaje === 'clementina' && !habilidadesBloqueadas(s);
+  // Clementina gana +1 solo en su primera venta de cada turno
+  const clem = p.personaje === 'clementina' && !habilidadesBloqueadas(s) && !(s.current === p.id && s.turn.vendioPrimera);
   if (item.k === 'mat') v = 1 + (clem ? 1 : 0);
   else if (item.k === 'tool') v = Math.floor(HERRAMIENTAS[item.id].precio / 2);
   else if (item.c.kind === 'comida') v = VENTA_COMIDA[item.c.tipo] + (clem ? 1 : 0);
@@ -382,8 +389,16 @@ export function requisitos(s: GameState, p: Player, b: BuildingId) {
   const faltanTools = def.herramientas.filter(t => p.tools[t] < 1);
   const comodin = p.mano.find(c => c.kind === 'exag' && c.id === 'mama');
   const toolsOk = faltanTools.length === 0 || (faltanTools.length === 1 && !!comodin);
-  const matsOk = p.mat.G >= 1 && p.mat.M >= 1 && p.mat.B >= 1;
+  const matsOk = pagoMateriales(s, p) !== null;
   return { guacas, faltanTools, comodin, toolsOk, matsOk, guacasOk: true, ok: toolsOk && matsOk };
+}
+/** Materiales que se gastan al construir (1 de cada uno; Doña Mercedes cubre Madera o Barro con Guadua). */
+export function pagoMateriales(s: GameState, p: Player): Record<MaterialId, number> | null {
+  if (p.mat.G >= 1 && p.mat.M >= 1 && p.mat.B >= 1) return { G: 1, M: 1, B: 1 };
+  if (p.personaje !== 'mercedes' || habilidadesBloqueadas(s)) return null;
+  const faltaM = p.mat.M >= 1 ? 0 : 1, faltaB = p.mat.B >= 1 ? 0 : 1;
+  if (p.mat.G < 1 + faltaM + faltaB) return null;
+  return { G: 1 + faltaM + faltaB, M: 1 - faltaM, B: 1 - faltaB };
 }
 export function puedeConstruir(s: GameState) {
   const p = cur(s);
@@ -413,22 +428,29 @@ export function bonoComida(s: GameState, p: Player, c: Combat) {
   let v = c.food.d8;
   if (c.food.tipo === 'licor' && pasivaApoyo(p, 'genovevo') && !habilidadesBloqueadas(s)) v += 1;
   if (c.food.tipo === 'carne' && pasivaApoyo(p, 'benancio') && !habilidadesBloqueadas(s)) v += 1;
+  // Doña Claudia sabe preparar remedios: cualquier comida le suma D8 + 1
+  if (p.personaje === 'claudia' && !habilidadesBloqueadas(s)) v += 1;
   return v;
 }
 export function poderJugador(s: GameState, c: Combat) {
   const p = s.players[c.fighter];
-  return dadosUsados(c).reduce((a, b) => a + b, 0) + totalGolpe(p) + c.bonus + bonoComida(s, p, c) + totalRespuesta(c);
+  return dadosUsados(c).reduce((a, b) => a + b, 0) + totalGolpe(p) + c.bonus + bonoComida(s, p, c) + totalRespuesta(c) + bonoPersonaje(s, p);
 }
+/** Bono fijo de personaje en combate: Don Wilson pelea con +1 de golpe. */
+export function bonoPersonaje(s: GameState, p: Player) { return p.personaje === 'wilson' && !habilidadesBloqueadas(s) ? BONO_WILSON : 0; }
+export const BONO_WILSON = 3;
+export const ORO_JAIRO = 1;
 /** Probabilidad aproximada de vencer (para IA y ayuda en pantalla). */
 export function probVictoria(s: GameState, p: Player, ataque: number, extraBonus = 0, conComida = false): number {
   const wilson = p.personaje === 'wilson' && !habilidadesBloqueadas(s);
-  const base = totalGolpe(p) + extraBonus;
+  const base = totalGolpe(p) + extraBonus + bonoPersonaje(s, p);
   let win = 0, tot = 0;
   const caras = [1, 2, 3, 4, 5, 6];
   const comidas = conComida ? [1, 2, 3, 4, 5, 6, 7, 8] : [0];
   for (const a of caras) for (const b of caras) for (const c of (wilson ? caras : [0])) for (const f of comidas) {
     const ds = wilson ? [a, b, c].sort((x, y) => y - x).slice(0, 2) : [a, b];
-    tot++; if (ds[0] + ds[1] + base + f >= ataque) win++;
+    const extraComida = f && p.personaje === 'claudia' && !habilidadesBloqueadas(s) ? 1 : 0;
+    tot++; if (ds[0] + ds[1] + base + f + extraComida >= ataque) win++;
   }
   return win / tot;
 }
@@ -522,6 +544,8 @@ function resolverCombate(s: GameState) {
   } else {
     c.result = 'pierde';
     log(s, `${p.nombre} pierde contra ${m.nombre} (${poder} contra ${ataque}).`, p.id);
+    // Doña Rosalba cobra cuando a un rival le va mal en el Monte
+    if (!habilidadesBloqueadas(s)) for (const q of s.players) if (q.personaje === 'rosalba' && q.id !== p.id && c.sabotajes.some(sb => sb.by === q.id)) { q.oro += 1; log(s, `${q.nombre} gana 1 oro: la casa invita.`, q.id); }
     if ((c.food?.tipo === 'licor' || c.respuestas.some(r => r.licor)) && !(pasivaApoyo(p, 'genovevo') && !habilidadesBloqueadas(s))) { p.saltaPlaza = true; log(s, `${p.nombre} queda enguayabado.`, p.id); }
     preguntarCastigo(s, c.fighter, m.castigo, m.nombre);
     terminarCombate(s);
@@ -547,6 +571,8 @@ function siguienteVictoria(s: GameState) {
 function cobrarRecompensa(s: GameState) {
   const c = s.combat!; const p = s.players[c.fighter];
   const r = c.reward!;
+  // Don Jairo: cada mito vencido le deja 1 oro extra
+  if (p.personaje === 'jairo' && !habilidadesBloqueadas(s)) { r.oro += ORO_JAIRO; }
   p.oro += r.oro;
   if (r.oro) log(s, `${p.nombre} gana ${r.oro} oro.`, p.id);
   darGuacas(s, p, r.guacas);
@@ -587,7 +613,9 @@ function preguntarCastigo(s: GameState, i: number, castigo: Castigo, origen: str
   const ops: Option[] = [{ id: 'aceptar', label: 'Aceptar el castigo' }];
   if (p.guardados.includes('mal-tiempo')) ops.push({ id: 'mal-tiempo', label: 'Usar «A mal tiempo, buena cara»' });
   const comida = p.mano.find(c => c.kind === 'comida');
-  if (p.personaje === 'claudia' && comida && !habilidadesBloqueadas(s)) ops.push({ id: 'claudia', label: 'Remedios de Monte: descartar 1 comida' });
+  if (p.personaje === 'claudia' && !habilidadesBloqueadas(s)) {
+    if (p.remedioRonda !== s.round) ops.push({ id: 'claudia-gratis', label: 'Remedios de Monte: evitar el castigo', detail: 'Una vez por ronda' });
+  }
   if (ops.length === 1) { aplicarCastigo(s, i, castigo); return; }
   push(s, { kind: 'castigo', player: i, title: `Castigo de ${origen}`, text: textoCastigo(castigo), data: { castigo }, options: ops });
 }
@@ -643,6 +671,9 @@ function resolverDicho(s: GameState, id: DichoId) {
   const p = cur(s); const n = s.players.length;
   const dd = dicho(id);
   log(s, `Dicho: «${dd.nombre}»`, p.id);
+  if (!habilidadesBloqueadas(s)) for (const q of s.players) if (q.personaje === 'evaristo') {
+    if (q.id === p.id) { log(s, `${q.nombre} se lo sabe: roba 1 guaca.`, q.id); darGuacas(s, q, 1); }
+  }
   s.anuncio = { titulo: dd.nombre, texto: dd.texto, img: 'cartas/ilustracion-dichos' };
   const descartar = () => s.monteDescarte.push({ uid: uidCounter++, kind: 'dicho', id });
   if (dd.guardable) { p.guardados.push(id); log(s, `${p.nombre} guarda la carta.`, p.id); return; }
@@ -754,8 +785,8 @@ function activaPersonaje(s: GameState, p: Player, id: CharacterId, r: number) {
       else { const o = ops(() => true); if (p.mano.length) push(s, { kind: 'dar-carta', player: p.id, title: '¿A quién le das una carta?', options: o }); }
       break;
     case 'clementina':
-      if (lv === 0) tomarDelDescarte(s, p, c => c.kind === 'comida', 2);
-      else if (lv === 1) tomarDelDescarte(s, p, c => c.kind === 'comida', 1);
+      if (lv === 0) tomarDelDescarte(s, p, c => c.kind === 'comida', 1);
+      else if (lv === 1) { p.oro += 2; log(s, `${p.nombre} gana 2 oro.`, p.id); }
       else descartarComida(s, p);
       break;
     case 'fernando':
@@ -769,16 +800,45 @@ function activaPersonaje(s: GameState, p: Player, id: CharacterId, r: number) {
       break;
     case 'claudia':
       if (lv === 0) { s.turn.claudia = 'doble'; log(s, 'El próximo mito que venza este turno da el doble de oro.', p.id); }
-      else if (lv === 1) { s.turn.claudia = 'mas1'; log(s, 'El próximo mito que venza este turno da +1 oro.', p.id); }
-      else if (p.oro > 0) push(s, { kind: 'dar-oro', player: p.id, title: '¿A quién le das 1 oro?', options: ops(() => true) });
+      else if (lv === 1) { tomarDelDescarte(s, p, c => c.kind === 'comida', 1); }
+      else descartarComida(s, p);
       break;
     case 'jairo':
       if (lv === 0) darGuacas(s, p, 1);
       else if (lv === 1) { p.oro++; log(s, `${p.nombre} gana 1 oro.`, p.id); }
       else { p.oro = Math.max(0, p.oro - 1); log(s, `${p.nombre} pierde 1 oro.`, p.id); }
       break;
+    case 'mercedes':
+      if (lv === 0) { p.mat.G++; log(s, `${p.nombre} gana 1 Guadua.`, p.id); }
+      else if (lv === 1) {
+        const k: MaterialId | null = p.mat.M >= p.mat.B ? (p.mat.M > 0 ? 'M' : null) : 'B';
+        if (k) { p.mat[k]--; p.mat.G++; log(s, `${p.nombre} cambia 1 ${MATERIALES[k].nombre} por Guadua.`, p.id); }
+        else log(s, 'Sin efecto.', p.id);
+      }
+      else quitarMaterial(s, p, 1);
+      break;
+    case 'herminia':
+      if (lv === 0) darGuacas(s, p, 1);
+      else if (lv === 1) tomarDelDescarte(s, p, c => c.kind === 'comida', 1);
+      else if (p.oro > 0) { p.oro -= 1; log(s, `${p.nombre} pierde 1 oro.`, p.id); }
+      break;
+    case 'evaristo':
+      if (lv === 0) darGuacas(s, p, 1);
+      else if (lv === 1) { p.oro += 1; log(s, `${p.nombre} gana 1 oro.`, p.id); }
+      else { const x = quitarPeorCarta(s, p); if (x) log(s, `${p.nombre} descarta ${nombreCarta(x)}.`, p.id); }
+      break;
+    case 'rosalba':
+      if (lv === 0) { tomarDelDescarte(s, p, c => c.kind === 'comida' && c.tipo === 'licor', 1); p.oro += 1; log(s, `${p.nombre} gana 1 oro.`, p.id); }
+      else if (lv === 1) tomarDelDescarte(s, p, c => c.kind === 'comida' && c.tipo === 'licor', 1);
+      else if (p.oro > 0) { p.oro -= 1; log(s, `${p.nombre} pierde 1 oro.`, p.id); }
+      break;
+    case 'aurelio':
+      if (lv === 0) push(s, { kind: 'material-gratis', player: p.id, title: 'Elige tu material', options: matOptions() });
+      else if (lv === 1) { p.oro += 1; log(s, `${p.nombre} gana 1 oro.`, p.id); }
+      else if (p.oro > 0) { p.oro -= 1; log(s, `${p.nombre} pierde 1 oro.`, p.id); }
+      break;
     case 'wilson':
-      if (s.combat && s.combat.step === 'decidir') { s.combat.bonus += lv === 0 ? 3 : lv === 1 ? 1 : -2; log(s, `Bono de golpe: ${s.combat.bonus >= 0 ? '+' : ''}${s.combat.bonus}.`, p.id); }
+      if (s.combat && s.combat.step === 'decidir') { s.combat.bonus += lv === 0 ? 3 : lv === 1 ? 2 : -1; log(s, `Bono de golpe: ${s.combat.bonus >= 0 ? '+' : ''}${s.combat.bonus}.`, p.id); }
       break;
   }
 }
@@ -817,7 +877,7 @@ function activaApoyo(s: GameState, p: Player, r: number) {
       break;
     case 'edilberto':
       if (lv === 0) {
-        const o = rivales(s, p.id).filter(k => ['jose-maria', 'clementina', 'fernando', 'claudia'].includes(s.players[k].personaje))
+        const o = rivales(s, p.id).filter(k => ['jose-maria', 'clementina', 'fernando', 'claudia', 'mercedes', 'herminia', 'evaristo', 'rosalba', 'aurelio'].includes(s.players[k].personaje))
           .map(k => ({ id: s.players[k].personaje, label: `${personaje(s.players[k].personaje).nombre}`, detail: personaje(s.players[k].personaje).activa[0] }));
         if (o.length) push(s, { kind: 'edilberto', player: p.id, title: 'Edilberto: ¿qué habilidad copias?', options: o });
         else darMorral(s, p, 1);
@@ -947,6 +1007,16 @@ function aplicarJugada(prev: GameState, a: Action): GameState {
           break;
         }
       }
+      if (p.personaje === 'aurelio' && !habilidadesBloqueadas(s)) {
+        if (s.monte.length < 2) { s.monte = [...shuffle(s, s.monteDescarte), ...s.monte]; s.monteDescarte = []; }
+        const dos = s.monte.slice(-2).reverse();
+        if (dos.length === 2) {
+          const et = (c: MonteCard) => c.kind === 'mito' ? `${mito(c.id).nombre} (ataque ${mito(c.id).ataque})` : `Dicho: ${dicho(c.id).nombre}`;
+          push(s, { kind: 'aurelio', player: p.id, title: 'Ojo de Arriero: ¿cuál enfrentas?', text: 'La otra carta va al fondo del Monte. No puedes huir.',
+            options: dos.map((c, i) => ({ id: String(i), label: et(c), img: c.kind === 'mito' ? `mitos/${c.id}` : 'cartas/ilustracion-dichos' })) });
+          break;
+        }
+      }
       explorar(s, false);
       break;
     }
@@ -983,8 +1053,8 @@ function aplicarJugada(prev: GameState, a: Action): GameState {
       break;
     }
     case 'contratar': {
-      if (s.phase !== 'plaza' || p.apoyo || s.evento === 'cierre' || !s.apoyosRevelados.includes(a.id) || p.oro < precioApoyo(s)) return prev;
-      p.oro -= precioApoyo(s); p.apoyo = a.id; p.apoyoNuevo = false;
+      if (s.phase !== 'plaza' || p.apoyo || s.evento === 'cierre' || !s.apoyosRevelados.includes(a.id) || p.oro < precioApoyo(s, p)) return prev;
+      p.oro -= precioApoyo(s, p); p.apoyo = a.id; p.apoyoNuevo = false;
       s.apoyosRevelados = s.apoyosRevelados.filter(x => x !== a.id);
       log(s, `${p.nombre} contrata a ${apoyo(a.id).nombre}.`, p.id);
       if (a.id === 'edilberto') {
@@ -1013,7 +1083,9 @@ function aplicarJugada(prev: GameState, a: Action): GameState {
     }
     case 'habilidadApoyo': {
       if (!apoyoDisponible(s)) return prev;
-      s.turn.apoyoUsada = true;
+      // Doña Herminia puede usar la habilidad de su apoyo una segunda vez en el turno
+      if (p.personaje === 'herminia' && !s.turn.apoyoExtra && !habilidadesBloqueadas(s)) s.turn.apoyoExtra = true;
+      else s.turn.apoyoUsada = true;
       activaApoyo(s, p, rollHabilidad(s, apoyo(p.apoyo!).nombre, p));
       break;
     }
@@ -1049,7 +1121,8 @@ function aplicarJugada(prev: GameState, a: Action): GameState {
     case 'construir': {
       const b = puedeConstruir(s); if (!b) return prev;
       const r = requisitos(s, p, b);
-      p.mat.G--; p.mat.M--; p.mat.B--;
+      const pago = pagoMateriales(s, p)!;
+      p.mat.G -= pago.G; p.mat.M -= pago.M; p.mat.B -= pago.B;
       for (const t of EDIFICIOS[b].herramientas) {
         if (p.tools[t] > 0) { p.tools[t]--; s.herramientasDescarte.push(t); }
         else if (r.comodin) { p.mano = p.mano.filter(x => x.uid !== r.comodin!.uid); s.morralDescarte.push(r.comodin); log(s, `${p.nombre} usa «Más feo que pegarle a la mamá» como ${HERRAMIENTAS[t].nombre}.`, p.id); }
@@ -1061,7 +1134,8 @@ function aplicarJugada(prev: GameState, a: Action): GameState {
     }
     case 'reparar': {
       if (s.phase !== 'taller' || p.edificios[a.b] !== 'danada') return prev;
-      if (s.evento !== 'reparacion') { const k = materialMasAbundante(p); if (!k) return prev; p.mat[k]--; }
+      const gratis = s.evento === 'reparacion';
+      if (!gratis) { const k = materialMasAbundante(p); if (!k) return prev; p.mat[k]--; }
       p.edificios[a.b] = 'ok'; log(s, `${p.nombre} repara ${EDIFICIOS[a.b].nombre}.`, p.id);
       break;
     }
@@ -1072,14 +1146,13 @@ function aplicarJugada(prev: GameState, a: Action): GameState {
       if (a.item.k === 'mat') { if (p.mat[a.item.id] < 1) return prev; p.mat[a.item.id]--; v = valorVenta(s, p, { k: 'mat' }); que = MATERIALES[a.item.id].nombre; }
       else if (a.item.k === 'tool') { if (p.tools[a.item.id] < 1) return prev; p.tools[a.item.id]--; s.herramientasDescarte.push(a.item.id); v = valorVenta(s, p, { k: 'tool', id: a.item.id }); que = HERRAMIENTAS[a.item.id].nombre; }
       else { const uid = a.item.uid; const c = p.mano.find(x => x.uid === uid); if (!c || c.kind === 'exag') return prev; p.mano = p.mano.filter(x => x.uid !== uid); s.morralDescarte.push(c); v = valorVenta(s, p, { k: 'carta', c }); que = nombreCarta(c); }
-      if (p.personaje === 'jose-maria' && !s.turn.vendioPrimera && !habilidadesBloqueadas(s)) v += 1;
       s.turn.vendioPrimera = true;
       if (p.tamalDe !== null) { const q = s.players[p.tamalDe]; q.oro += v; log(s, `${p.nombre} vende ${que}, pero ${q.nombre} se queda con los ${v} oro (tamal).`, p.id); p.tamalDe = null; }
       else { p.oro += v; log(s, `${p.nombre} vende ${que} por ${v} oro.`, p.id); }
       break;
     }
     case 'comprarMaterial': {
-      if (s.phase !== 'campo') return prev; const v = precioMaterial(s, p); if (p.oro < v) return prev;
+      if (s.phase !== 'campo') return prev; const v = precioMaterial(s, p, a.id); if (p.oro < v) return prev;
       p.oro -= v; p.mat[a.id]++; log(s, `${p.nombre} compra 1 ${MATERIALES[a.id].nombre} por ${v} oro.`, p.id);
       break;
     }
@@ -1134,6 +1207,14 @@ function resolverEleccion(s: GameState, pnd: Pending, id: string) {
       for (const c of cs) { if (String(c.uid) === id) p.mano.push(c); else s.morralDescarte.push(c); }
       break;
     }
+    case 'aurelio': {
+      // 0 = la de arriba, 1 = la segunda; la que no escoge va al fondo
+      if (id === '1') { const top = s.monte.pop(); if (top) s.monte.unshift(top); }
+      else { const top = s.monte.pop()!; const seg = s.monte.pop(); if (seg) s.monte.unshift(seg); s.monte.push(top); }
+      log(s, `${p.nombre} escoge su camino en el Monte.`, p.id);
+      explorar(s, true);
+      break;
+    }
     case 'jairo-mira':
       if (id === 'fondo') { const top = s.monte.pop(); if (top) s.monte.unshift(top); log(s, `${p.nombre} pone la carta al fondo del Monte.`, p.id); explorar(s, true); }
       else explorar(s, false);
@@ -1145,7 +1226,7 @@ function resolverEleccion(s: GameState, pnd: Pending, id: string) {
         const [k, uidS] = id.split(':'); const card = take(Number(uidS), p.mano);
         if (card) {
           s.morralDescarte.push(card);
-          if (k === 'food' || k === 'perro') { const sb = { by: p.id, d8: d(s, 8), con: nombreCarta(card) }; c.sabotajes.push(sb); c.hostiles++; log(s, `${p.nombre} sabotea con ${nombreCarta(card)}: +${sb.d8} al mito.`, p.id); }
+          if (k === 'food' || k === 'perro') { const sb = { by: p.id, d8: d(s, 8) + (p.personaje === 'rosalba' && !habilidadesBloqueadas(s) ? 1 : 0), con: nombreCarta(card) }; c.sabotajes.push(sb); c.hostiles++; log(s, `${p.nombre} sabotea con ${nombreCarta(card)}: +${sb.d8} al mito.`, p.id); }
           if (k === 'bizco') { c.bizco = true; c.hostiles++; log(s, `${p.nombre} juega «${exag('bizco').nombre}»: ataque y recompensa dobles.`, p.id); }
           // Quien pelea puede responder al sabotaje
           if (pedirRespuesta(s, p.id)) break;
@@ -1191,6 +1272,7 @@ function resolverEleccion(s: GameState, pnd: Pending, id: string) {
       const castigo: Castigo = pnd.data.castigo;
       if (id === 'mal-tiempo') { p.guardados.splice(p.guardados.indexOf('mal-tiempo'), 1); s.monteDescarte.push({ uid: uidCounter++, kind: 'dicho', id: 'mal-tiempo' }); log(s, `${p.nombre} usa «A mal tiempo, buena cara».`, p.id); }
       else if (id === 'claudia') { descartarComida(s, p); log(s, `${p.nombre} se cura con remedios de monte.`, p.id); }
+      else if (id === 'claudia-gratis') { p.remedioRonda = s.round; log(s, `${p.nombre} se cura con remedios de monte.`, p.id); }
       else aplicarCastigo(s, p.id, castigo);
       break;
     }

@@ -42,7 +42,7 @@ export function PanelZona({ s, me, dispatch }: { s: GameState; me: Player; dispa
   let info: React.ReactNode = null;
   if (s.phase === 'plaza') {
     botones = <>
-      <button disabled={!!me.apoyo || s.evento === 'cierre'} onClick={() => setHoja('apoyos')}>{me.apoyo ? 'Ya tienes apoyo' : <>Contratar apoyo · <Precio n={precioApoyo(s)} /></>}</button>
+      <button disabled={!!me.apoyo || s.evento === 'cierre'} onClick={() => setHoja('apoyos')}>{me.apoyo ? 'Ya tienes apoyo' : <>Contratar apoyo · <Precio n={precioApoyo(s, me)} /></>}</button>
       <button disabled={s.evento === 'cierre' || s.turn.intercambios >= maxIntercambios(s, me)} onClick={() => setHoja('trato')}>Intercambiar</button>
       {pj.momento === 'cualquiera' && <button className="dorado" disabled={!mainDisponible(s)} onClick={() => dispatch({ t: 'habilidad' })}>Habilidad D6</button>}
       {me.apoyo && <button className="dorado" disabled={!apoyoDisponible(s)} onClick={() => dispatch({ t: 'habilidadApoyo' })}>Apoyo D6</button>}
@@ -67,9 +67,8 @@ export function PanelZona({ s, me, dispatch }: { s: GameState; me: Player; dispa
     </>;
     if (sig) info = <RequisitosConstruccion p={me} soloSiguiente />;
   } else if (s.phase === 'campo') {
-    const precio = precioMaterial(s, me);
     botones = <>
-      {(['G', 'M', 'B'] as MaterialId[]).map(k => <button key={k} className="con-img" disabled={me.oro < precio} onClick={() => dispatch({ t: 'comprarMaterial', id: k })}><img src={IMG(MATERIALES[k].img)} alt="" />Comprar <Precio n={precio} /></button>)}
+      {(['G', 'M', 'B'] as MaterialId[]).map(k => <button key={k} className="con-img" disabled={me.oro < precioMaterial(s, me, k)} onClick={() => dispatch({ t: 'comprarMaterial', id: k })}><img src={IMG(MATERIALES[k].img)} alt="" />Comprar <Precio n={precioMaterial(s, me, k)} /></button>)}
       {(['G', 'M', 'B'] as MaterialId[]).filter(k => me.mat[k] > 0).map(k => <button key={'v' + k} className="con-img claro" onClick={() => dispatch({ t: 'vender', item: { k: 'mat', id: k } })}><img src={IMG(MATERIALES[k].img)} alt="" />Vender <Precio signo="+" n={valorVenta(s, me, { k: 'mat' })} /></button>)}
       {(['puntilla', 'martillo', 'serrucho'] as ToolId[]).filter(t => me.tools[t] > 0).map(t => <button key={t} className="con-img claro" onClick={() => dispatch({ t: 'vender', item: { k: 'tool', id: t } })}><img src={IMG(HERRAMIENTAS[t].img)} alt="" />Vender <Precio signo="+" n={valorVenta(s, me, { k: 'tool', id: t })} /></button>)}
     </>;
@@ -89,7 +88,7 @@ export function PanelZona({ s, me, dispatch }: { s: GameState; me: Player; dispa
               <div className="cel-apoyos">
                 {s.apoyosRevelados.map(id => (
                   <ApoyoCarta key={id} id={id} w={160}>
-                    <button className="btn chico" disabled={me.oro < precioApoyo(s)} onClick={() => { dispatch({ t: 'contratar', id }); setHoja(null); }}>Contratar · <Precio n={precioApoyo(s)} /></button>
+                    <button className="btn chico" disabled={me.oro < precioApoyo(s, me)} onClick={() => { dispatch({ t: 'contratar', id }); setHoja(null); }}>Contratar · <Precio n={precioApoyo(s, me)} /></button>
                   </ApoyoCarta>
                 ))}
               </div>

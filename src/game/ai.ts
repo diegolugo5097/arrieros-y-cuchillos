@@ -1,4 +1,5 @@
 // IA heurística de Arrieros y Cuchillos.
+import { RECOMPENSA } from './data';
 import { ApoyoId, EDIFICIOS, exag, HERRAMIENTAS, MaterialId, mito, ORDEN_EDIFICIOS, personaje, Slot, ToolId } from './data';
 import {
   Action, ataqueMito, cur, edificiosOk, exagJugable, GameState, mainDisponible, apoyoDisponible, materialQueFalta, objetivosExag,
@@ -65,7 +66,7 @@ function turno(s: GameState, p: Player): Action {
   if (s.phase === 'plaza') {
     for (const card of p.mano) if (card.kind === 'equipo' && (!p.equipo[card.slot] || p.equipo[card.slot]!.golpe < card.golpe)) return { t: 'equipar', uid: card.uid };
     if (s.evento === 'errantes' && !s.turn.guacaErrantes && p.oro >= 8) return { t: 'guacaErrantes' };
-    if (!p.apoyo && s.evento !== 'cierre' && p.oro >= precioApoyo(s) + 4) {
+    if (!p.apoyo && s.evento !== 'cierre' && p.oro >= precioApoyo(s, p) + 4) {
       const pref: ApoyoId[] = [...(p.edificios.iglesia ? [] : ['cura-audemio' as ApoyoId]), 'tulio', 'polonio', 'abuelo', 'benancio', 'genovevo', 'chapolera', 'edilberto'];
       const a = pref.find(x => s.apoyosRevelados.includes(x));
       if (a) return { t: 'contratar', id: a };
@@ -103,7 +104,13 @@ function turno(s: GameState, p: Player): Action {
   if (s.phase === 'campo') {
     const sig = ORDEN_EDIFICIOS.find(b => !p.edificios[b]);
     if (sig) {
-      for (const k of ['G', 'M', 'B'] as MaterialId[]) if (p.mat[k] < 1 && p.oro >= precioMaterial(s, p)) return { t: 'comprarMaterial', id: k };
+      if (p.personaje === 'mercedes') {
+        // Doña Mercedes cubre Madera o Barro con Guadua, y la Guadua le sale más barata
+        const necesita = 1 + (p.mat.M < 1 ? 1 : 0) + (p.mat.B < 1 ? 1 : 0);
+        if (p.mat.G < necesita && p.oro >= precioMaterial(s, p, 'G')) return { t: 'comprarMaterial', id: 'G' };
+      } else {
+        for (const k of ['G', 'M', 'B'] as MaterialId[]) if (p.mat[k] < 1 && p.oro >= precioMaterial(s, p, k)) return { t: 'comprarMaterial', id: k };
+      }
     }
     // vender lo que sobra
     for (const card of p.mano) if (card.kind === 'equipo' && p.equipo[card.slot] && p.equipo[card.slot]!.golpe >= card.golpe) return { t: 'vender', item: { k: 'carta', uid: card.uid } };
@@ -111,7 +118,7 @@ function turno(s: GameState, p: Player): Action {
     const need = herramientasPendientes(p);
     const faltaOro = (['puntilla', 'martillo', 'serrucho'] as ToolId[]).some(t => need[t] > 0 && p.oro < precioHerramienta(s, p, t));
     if (faltaOro && comidas.length > 2) return { t: 'vender', item: { k: 'carta', uid: comidas[0].uid } };
-    const sobra = (['G', 'M', 'B'] as MaterialId[]).find(k => p.mat[k] > faltanEdificios(p) + 1);
+    const sobra = (['G', 'M', 'B'] as MaterialId[]).find(k => p.mat[k] > faltanEdificios(p) + 1 && !(k === 'G' && p.personaje === 'mercedes'));
     if (sobra && faltaOro) return { t: 'vender', item: { k: 'mat', id: sobra } };
     return { t: 'next' };
   }
@@ -152,6 +159,18 @@ function elegir(s: GameState, pnd: Pending): string {
       return 'dejar';
     }
     case 'jairo': return 'si';
+    case 'aurelio': {
+      // Escoge la carta que más le conviene: un mito que pueda vencer (mejor si paga más) o un dicho
+      const cartas = [s.monte[s.monte.length - 1], s.monte[s.monte.length - 2]];
+      const comida = p.mano.some(c => c.kind === 'comida');
+      const valor = (c: typeof cartas[number]) => {
+        if (!c) return -1;
+        if (c.kind === 'dicho') return 1.2;
+        const m = mito(c.id); const rec = RECOMPENSA[m.tier];
+        return probVictoria(s, p, m.ataque, 0, comida) * (rec.oro + rec.guacas * 2 + 1.5) - (1 - probVictoria(s, p, m.ataque, 0, comida)) * 2;
+      };
+      return valor(cartas[1]) > valor(cartas[0]) ? '1' : '0';
+    }
     case 'respuesta': {
       // Responde solo si va perdiendo y la respuesta puede alcanzar
       const c = s.combat!;
@@ -188,6 +207,7 @@ function elegir(s: GameState, pnd: Pending): string {
       const t = pnd.data.castigo.t;
       const grave = ['danaTodos', 'danaMejor', 'danaCasa', 'pierdeTurno', 'descartaTodaMano', 'descartaTodosMateriales', 'entregaMejorEquipo', 'reparteMano'].includes(t);
       if (grave && has('mal-tiempo')) return 'mal-tiempo';
+      if (has('claudia-gratis')) return 'claudia-gratis';
       if (has('claudia') && (grave || p.mano.filter(x => x.kind === 'comida').length >= 3)) return 'claudia';
       return 'aceptar';
     }

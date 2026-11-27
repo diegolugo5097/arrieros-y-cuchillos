@@ -29,7 +29,7 @@ export const EDIFICIOS: Record<BuildingId, { nombre: string; herramientas: ToolI
 export const ORDEN_EDIFICIOS: BuildingId[] = ['casa', 'plaza', 'iglesia'];
 
 // ---------------- Personajes ----------------
-export type CharacterId = 'jairo' | 'jose-maria' | 'clementina' | 'fernando' | 'claudia' | 'wilson';
+export type CharacterId = 'jairo' | 'jose-maria' | 'clementina' | 'fernando' | 'claudia' | 'wilson' | 'mercedes' | 'herminia' | 'evaristo' | 'rosalba' | 'aurelio';
 export interface Character {
   id: CharacterId; nombre: string; rol: string; img: string;
   pasiva: string; activa: [string, string, string]; // [6-5, 4-3, 1]
@@ -37,23 +37,38 @@ export interface Character {
 }
 export const PERSONAJES: Character[] = [
   { id: 'jairo', nombre: 'Don Jairo Rivillas', rol: 'Explorador', img: 'personajes/jairo', momento: 'al-vencer',
-    pasiva: 'Intuición Mítica: antes de robar en el Monte mira la carta de arriba y puede ponerla al fondo; si lo hace, no puede huir de la siguiente.',
+    pasiva: 'Intuición Mítica: mira la carta de arriba del Monte y puede ponerla al fondo (si lo hace, no puede huir de la siguiente). Cada mito que vence le da +1 oro.',
     activa: ['Al vencer un mito: +1 guaca', 'Al vencer un mito: +1 oro', 'Pierde 1 oro'] },
   { id: 'jose-maria', nombre: 'Don José María Espinosa', rol: 'Negociante', img: 'personajes/jose-maria', momento: 'cualquiera',
-    pasiva: 'Comerciante Hábil: 2 intercambios por turno y +1 oro la primera vez que vende en cada turno.',
+    pasiva: 'Comerciante Hábil: puede hacer 2 intercambios por turno.',
     activa: ['Roba 1 carta al azar a un rival', 'Toma 1 carta del descarte de Guacas', 'Le da 1 carta a un rival'] },
   { id: 'clementina', nombre: 'Doña Clementina Hurtado', rol: 'Abastecedora', img: 'personajes/clementina', momento: 'cualquiera',
-    pasiva: 'Vendedora Experta: vende comida y materiales a +1 oro cada uno.',
-    activa: ['Toma 2 comidas del descarte de Guacas', 'Toma 1 comida del descarte', 'Descarta 1 comida'] },
+    pasiva: 'Vendedora Experta: su primera venta de comida o material en cada turno vale +1 oro.',
+    activa: ['Toma 1 comida del descarte de Guacas', 'Gana 2 oro', 'Descarta 1 comida'] },
   { id: 'fernando', nombre: 'Don Fernando Cadavid', rol: 'Constructor', img: 'personajes/fernando', momento: 'cualquiera',
     pasiva: 'Manos Hábiles: las herramientas le cuestan 1 oro menos.',
     activa: ['Convierte 1 material en una Puntilla o un Martillo', 'Cambia 1 material por otro del Fondo', 'Descarta 1 material'] },
   { id: 'claudia', nombre: 'Doña Claudia María R.', rol: 'Boticaria', img: 'personajes/claudia', momento: 'cualquiera',
-    pasiva: 'Remedios de Monte: si pierde un combate, puede descartar 1 comida para no sufrir el castigo.',
-    activa: ['Duplica el oro del próximo mito que venza', '+1 oro al próximo mito que venza', 'Le da 1 oro a un rival'] },
+    pasiva: 'Remedios de Monte: sus comidas suman D8 + 1. Una vez por ronda evita el castigo al perder.',
+    activa: ['Duplica el oro del próximo mito que venza', 'Toma 1 comida del descarte de Guacas', 'Descarta 1 comida'] },
   { id: 'wilson', nombre: 'Don Wilson Cuchillo', rol: 'Guía espiritual', img: 'personajes/wilson', momento: 'combate-antes',
-    pasiva: 'Bendición Divina: en combate lanza 3 D6 y descarta el más bajo.',
-    activa: ['Antes de lanzar: +3 de golpe', 'Antes de lanzar: +1 de golpe', 'Antes de lanzar: −2 de golpe'] },
+    pasiva: 'Bendición Divina: en combate lanza 3 D6, descarta el más bajo y suma +3 de golpe.',
+    activa: ['Antes de lanzar: +3 de golpe', 'Antes de lanzar: +2 de golpe', 'Antes de lanzar: −1 de golpe'] },
+  { id: 'mercedes', nombre: 'Doña Mercedes', rol: 'Tejedora de guadua', img: 'personajes/mercedes', momento: 'cualquiera',
+    pasiva: 'Manos de Guadua: compra Guadua a 1 oro y al construir puede usarla en lugar de Madera o Barro.',
+    activa: ['Gana 1 Guadua', 'Cambia 1 Madera o Barro por Guadua', 'Descarta 1 material'] },
+  { id: 'herminia', nombre: 'Doña Herminia', rol: 'Comadrona', img: 'personajes/herminia', momento: 'cualquiera',
+    pasiva: 'Buena Comadre: contrata apoyos a 1 oro menos y usa la habilidad de su apoyo dos veces por turno.',
+    activa: ['Roba 1 guaca', 'Toma 1 comida del descarte de Guacas', 'Pierde 1 oro'] },
+  { id: 'evaristo', nombre: 'Don Evaristo', rol: 'Culebrero', img: 'personajes/evaristo', momento: 'cualquiera',
+    pasiva: 'Pico de Oro: cada vez que saca un dicho en el Monte, roba 1 guaca.',
+    activa: ['Roba 1 guaca', 'Gana 1 oro', 'Descarta 1 carta'] },
+  { id: 'rosalba', nombre: 'Doña Rosalba', rol: 'Cantinera', img: 'personajes/rosalba', momento: 'cualquiera',
+    pasiva: 'La Casa Invita: sus sabotajes suman D8 + 1. Si el rival que sabotea pierde, ella gana 1 oro.',
+    activa: ['Toma 1 licor del descarte y gana 1 oro', 'Toma 1 licor del descarte', 'Pierde 1 oro'] },
+  { id: 'aurelio', nombre: 'Don Aurelio', rol: 'Arriero mayor', img: 'personajes/aurelio', momento: 'cualquiera',
+    pasiva: 'Ojo de Arriero: en el Monte mira 2 cartas y escoge cuál enfrentar; la otra va al fondo. No puede huir.',
+    activa: ['Gana 1 material a elección', 'Gana 1 oro', 'Pierde 1 oro'] },
 ];
 export const personaje = (id: CharacterId) => PERSONAJES.find(p => p.id === id)!;
 

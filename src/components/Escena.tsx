@@ -19,7 +19,7 @@ type EfectoActual = ReturnType<typeof useEfectosMesa>['actual'];
 
 /** Fondo de la escena según la zona del turno. */
 const FONDO: Record<string, string> = {
-  plaza: 'escenarios/escena-plaza', monte: 'escenarios/zona-monte', taller: 'escenarios/escena-taller', campo: 'escenarios/zona-campo', fin: 'escenarios/escena-plaza',
+  plaza: 'escenarios/escena-plaza', monte: 'escenarios/escena-monte', taller: 'escenarios/escena-taller', campo: 'escenarios/escena-campo', fin: 'escenarios/escena-plaza',
 };
 const NOMBRE_ZONA: Record<string, string> = { plaza: 'Plaza', monte: 'Monte', taller: 'Taller', campo: 'Campo' };
 
