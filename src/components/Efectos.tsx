@@ -9,7 +9,7 @@ import { posJugador, posDados, posMito, layoutEscena } from './Escena';
 type Efecto =
   | { id: number; tipo: 'carta'; de: number; carta: CartaProps; texto: string; color: string }
   | { id: number; tipo: 'mito'; mitoId: string }
-  | { id: number; tipo: 'dados'; dados: number[]; texto: string }
+  | { id: number; tipo: 'dados'; dados: number[]; texto: string; rotulo?: string }
   | { id: number; tipo: 'resultado'; r: 'gana' | 'pierde' | 'escapa'; texto: string }
   | { id: number; tipo: 'sabotaje'; de: number; d8: number; texto: string; color: string }
   | { id: number; tipo: 'construir'; b: BuildingId; texto: string; color: string }
@@ -68,6 +68,9 @@ export function useEfectosMesa(s: GameState) {
         const c = cartaPorNombre(m[1]); if (c) out.push({ id: sig++, tipo: 'carta', de: l.p ?? 0, carta: c, texto: `${nombre(l.p)} se equipa`, color: color(l.p) });
       } else if (l.t.includes(' enfrenta a ') && s.combat) {
         out.push({ id: sig++, tipo: 'mito', mitoId: s.combat.mitoId });
+      } else if ((m = l.t.match(/ lanza la habilidad de (.+?): (\d)(?: → (.+?))?\.$/))) {
+        // Dado de habilidad (personaje o apoyo): sale girando encima del personaje
+        out.push({ id: sig++, tipo: 'dados', dados: [Number(m[2])], texto: nombre(l.p), rotulo: `${nombre(l.p)} · habilidad de ${m[1]}: ${m[2]}${m[3] ? ` → ${m[3]}` : ''}` });
       } else if ((m = l.t.match(/ lanza (\d[\d + ]*)(?: \(|\.)/)) && !l.t.includes('habilidad')) {
         out.push({ id: sig++, tipo: 'dados', dados: m[1].split(' + ').map(Number), texto: nombre(l.p) });
       } else if (l.t.includes(' vence a ')) {
@@ -143,7 +146,7 @@ export function CapaEfectos({ s, efecto, rapido, yo }: { s: GameState; efecto: R
           {!(s.ordenTiradas && !s.orden) && <div className="fx-dados encima" style={{ left: DADOS.x, top: DADOS.y }}>
             {efecto.dados.map((v, i) => <div key={i} className="fx-dado gira" style={{ animationDelay: `${i * 90}ms`, ['--dx' as string]: `${(i - (efecto.dados.length - 1) / 2) * 120}px` }}><Dado v={v} grande /></div>)}
           </div>}
-          <div className="fx-rotulo">{efecto.texto} lanza los dados: {efecto.dados.join(' + ')}</div>
+          <div className="fx-rotulo">{efecto.rotulo ?? `${efecto.texto} lanza los dados: ${efecto.dados.join(' + ')}`}</div>
         </div>
       );
     case 'resultado':

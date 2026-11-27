@@ -762,7 +762,13 @@ function siguienteLlora(s: GameState, cartas: MorralCard[], orden: number[]) {
 }
 
 // ---------------- Habilidades ----------------
-function rollHabilidad(s: GameState, quien: string, p: Player) { const r = d(s, 6); log(s, `${p.nombre} lanza la habilidad de ${quien}: ${r}.`, p.id); return r; }
+/** Lanza el D6 de una habilidad y deja en el registro el número y lo que significa. */
+function rollHabilidad(s: GameState, quien: string, p: Player, activa?: string[]) {
+  const r = d(s, 6); const lv = nivel(r);
+  const efecto = lv < 0 ? 'sin efecto' : activa?.[lv] ?? '';
+  log(s, `${p.nombre} lanza la habilidad de ${quien}: ${r}${efecto ? ` → ${efecto}` : ''}.`, p.id);
+  return r;
+}
 const nivel = (r: number) => (r >= 5 ? 0 : r >= 3 ? 1 : r === 1 ? 2 : -1); // índice en activa[]
 function tomarDelDescarte(s: GameState, p: Player, filtro: (c: MorralCard) => boolean, n: number) {
   let tomadas = 0;
@@ -1078,7 +1084,7 @@ function aplicarJugada(prev: GameState, a: Action): GameState {
       if (!mainDisponible(s)) return prev;
       s.turn.mainUsada = true;
       if (p.personaje === 'wilson' && s.combat) s.combat.wilsonUsado = true;
-      activaPersonaje(s, p, p.personaje, rollHabilidad(s, personaje(p.personaje).nombre, p));
+      activaPersonaje(s, p, p.personaje, rollHabilidad(s, personaje(p.personaje).nombre, p, personaje(p.personaje).activa));
       break;
     }
     case 'habilidadApoyo': {
@@ -1086,7 +1092,7 @@ function aplicarJugada(prev: GameState, a: Action): GameState {
       // Doña Herminia puede usar la habilidad de su apoyo una segunda vez en el turno
       if (p.personaje === 'herminia' && !s.turn.apoyoExtra && !habilidadesBloqueadas(s)) s.turn.apoyoExtra = true;
       else s.turn.apoyoUsada = true;
-      activaApoyo(s, p, rollHabilidad(s, apoyo(p.apoyo!).nombre, p));
+      activaApoyo(s, p, rollHabilidad(s, apoyo(p.apoyo!).nombre, p, apoyo(p.apoyo!).activa));
       break;
     }
     case 'exag': {
@@ -1219,7 +1225,7 @@ function resolverEleccion(s: GameState, pnd: Pending, id: string) {
       if (id === 'fondo') { const top = s.monte.pop(); if (top) s.monte.unshift(top); log(s, `${p.nombre} pone la carta al fondo del Monte.`, p.id); explorar(s, true); }
       else explorar(s, false);
       break;
-    case 'jairo': if (id === 'si') { s.turn.mainUsada = true; activaPersonaje(s, p, 'jairo', rollHabilidad(s, 'Don Jairo', p)); } break;
+    case 'jairo': if (id === 'si') { s.turn.mainUsada = true; activaPersonaje(s, p, 'jairo', rollHabilidad(s, 'Don Jairo', p, personaje('jairo').activa)); } break;
     case 'reaccion': {
       const c = s.combat!;
       if (id !== 'pasar') {
@@ -1282,7 +1288,7 @@ function resolverEleccion(s: GameState, pnd: Pending, id: string) {
     case 'robar-a': { const q = s.players[Number(id)]; const c = quitarAlAzar(s, q); if (c) { p.mano.push(c); log(s, `${p.nombre} le roba una carta a ${q.nombre}.`, p.id); } break; }
     case 'dar-carta': { const q = s.players[Number(id)]; const c = quitarPeorCarta(s, p, false); if (c) { q.mano.push(c); log(s, `${p.nombre} le da ${nombreCarta(c)} a ${q.nombre}.`, p.id); } break; }
     case 'dar-oro': { const q = s.players[Number(id)]; if (p.oro > 0) { p.oro--; q.oro++; log(s, `${p.nombre} le da 1 oro a ${q.nombre}.`, p.id); } break; }
-    case 'edilberto': activaPersonaje(s, p, id as CharacterId, rollHabilidad(s, 'Edilberto', p)); break;
+    case 'edilberto': activaPersonaje(s, p, id as CharacterId, rollHabilidad(s, 'Edilberto', p, personaje(id as CharacterId).activa)); break;
     case 'edilberto-copia': p.copiaApoyo = id as ApoyoId; log(s, `Edilberto copia la pasiva de ${apoyo(id as ApoyoId).nombre}.`, p.id); break;
     case 'cria-fama': {
       const i = s.monteDescarte.findIndex(c => String(c.uid) === id);
