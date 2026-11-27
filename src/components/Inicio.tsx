@@ -1,29 +1,22 @@
 import { IMG } from '../game/data';
 import { ControlSonido } from './Controles';
 
+// Portada: la ilustración ya trae el título; los botones van sobre el camino del centro.
 export function Inicio({ onCrear, onUnirse, onVolver, onReglas, hayPartida }: { onCrear: () => void; onUnirse: () => void; onVolver: () => void; onReglas: () => void; hayPartida: boolean }) {
   return (
-    <div className="pantalla-inicio" style={{ backgroundImage: `url(${IMG('escenarios/mapa')})` }}>
-      <div className="inicio-velo" />
+    <div className="portada">
+      <div className="portada-fondo" style={{ backgroundImage: `url(${IMG('escenarios/portada')})` }} />
+      <div className="portada-velo" />
+      <h1 className="sr-only">Arrieros y Cuchillos · Una aventura quindiana</h1>
       <div className="inicio-sonido"><ControlSonido /></div>
-      <div className="inicio-caja">
-        <div className="logo">
-          <span className="logo-1">Arrieros</span>
-          <span className="logo-y">y</span>
-          <span className="logo-2">Cuchillos</span>
+      <nav className="portada-menu" aria-label="Menú principal">
+        {hayPartida && <button className="portada-btn volver" onClick={onVolver}><b>Volver a mi partida</b><small>Sigue donde ibas</small></button>}
+        <div className="portada-fila">
+          <button className="portada-btn principal" onClick={onCrear}><span className="portada-ico">⚔</span><b>Crear partida</b><small>y compartir el código</small></button>
+          <button className="portada-btn principal" onClick={onUnirse}><span className="portada-ico">🤝</span><b>Unirme</b><small>con el código o el QR</small></button>
         </div>
-        <div className="logo-sub">Una aventura quindiana</div>
-        <div className="inicio-figuras">
-          <img src={IMG('personajes/jairo')} alt="" />
-          <img src={IMG('mitos/madre-monte')} alt="" />
-        </div>
-        <div className="inicio-botones">
-          {hayPartida && <button className="btn grande" onClick={onVolver}>Volver a mi partida</button>}
-          <button className={`btn grande ${hayPartida ? 'sec' : ''}`} onClick={onCrear}>Crear partida <small>y compartir el código</small></button>
-          <button className={`btn grande ${hayPartida ? 'sec' : ''}`} onClick={onUnirse}>Unirme a una partida <small>con el código o el QR</small></button>
-          <button className="btn sec" onClick={onReglas}>Cómo jugar</button>
-        </div>
-      </div>
+        <button className="portada-btn reglas" onClick={onReglas}><b>📜 Cómo jugar</b></button>
+      </nav>
     </div>
   );
 }
